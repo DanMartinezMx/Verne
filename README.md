@@ -32,6 +32,23 @@ día. Las decisiones grandes quedan registradas con su razonamiento en [`rfcs/`]
 ¿Quieres contribuir o entender cómo se gobierna el proyecto? Lee
 [CONTRIBUTING.md](CONTRIBUTING.md).
 
+## Desarrollo
+
+Requisitos: Node ≥ 22, [pnpm](https://pnpm.io) 10, y [Rust](https://rustup.rs) +
+los [prerequisitos de Tauri](https://tauri.app/start/prerequisites/) para ejecutar
+la app de escritorio.
+
+```sh
+pnpm install
+pnpm check                          # typecheck + tests + lint de fronteras
+pnpm --filter @verne/desktop tauri dev    # app de escritorio en desarrollo
+```
+
+Estructura: `packages/core` (lógica y formato VPF, sin UI), `packages/ui`
+(componentes React), `apps/desktop` (caparazón Tauri), `docs/spec/vpf` (la
+especificación del formato), `examples/` (proyectos VPF de ejemplo). Las fronteras
+entre paquetes las vigila `pnpm lint:boundaries` en CI.
+
 ## Licencia
 
 [AGPL-3.0](LICENSE) para todo el repositorio en v0.x. Cuando existan el SDK de plugins y las
