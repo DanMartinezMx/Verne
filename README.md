@@ -20,14 +20,20 @@ un blog nunca ve fichas de personajes; quien escribe una novela nunca ve puntuac
 
 ## Estado del proyecto
 
-Fase de diseño. El documento fundacional del proyecto — visión, arquitectura completa,
-justificación tecnológica, sistema de plugins, roadmap y riesgos — está abierto a discusión:
+Fase de diseño, camino de la v0.1. Verne es el proyecto personal de un solo maintainer,
+construido primero para su propio uso (blog y cuentos, en Windows) y abierto desde el primer
+día. Las decisiones grandes quedan registradas con su razonamiento en [`rfcs/`](rfcs/):
 
-**→ [RFC-0001: Visión, Arquitectura y Roadmap](rfcs/0001-vision-y-arquitectura.md)**
+- **[RFC-0001: Visión, Arquitectura y Roadmap](rfcs/0001-vision-y-arquitectura.md)** — el
+  mapa a 10 años: arquitectura completa, plugins, sincronización, IA, multiplataforma.
+- **[RFC-0002: Alcance v0.x, la ruta solo-dev](rfcs/0002-alcance-solo-dev.md)** — el plan
+  real y vigente: qué se construye ahora, qué se aplaza y qué lo reactivaría.
 
-Las decisiones importantes del proyecto se toman mediante RFCs públicos en [`rfcs/`](rfcs/).
+¿Quieres contribuir o entender cómo se gobierna el proyecto? Lee
+[CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Licencia
 
-Ver [LICENSE](LICENSE). Nota: el RFC-0001 (§19.5.4) propone revisar el esquema de licencias
-por capas antes de la primera contribución externa; se decidirá en el futuro RFC-0002.
+[AGPL-3.0](LICENSE) para todo el repositorio en v0.x. Cuando existan el SDK de plugins y las
+bibliotecas del formato VPF, se publicarán bajo MIT/Apache-2.0 para que cualquier herramienta
+pueda implementar el formato (razonamiento en RFC-0001 §19.5.4 y RFC-0002 §7.2).
