@@ -346,6 +346,7 @@ button[type="submit"] {
   font-size: 0.82rem;
 }
 .doc-tags { width: 14rem; }
+.doc-export { font-size: 0.82rem; }
 .doc-trash { border: none; background: transparent; font-size: 0.95rem; }
 .doc-trash:hover { background: color-mix(in srgb, #dc2626 15%, transparent); }
 .workspace--focus .doc-header { display: none; }
@@ -382,6 +383,29 @@ button[type="submit"] {
   background: var(--bg);
   padding: 0.2rem 0.35rem;
   font-size: 0.82rem;
+}
+
+/* Panel de exportación */
+.export { padding: 1.25rem 1.5rem; max-width: 46rem; }
+.export-header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+.export-header h2 { margin: 0; font-size: 1.15rem; }
+.export-feedback { color: var(--accent); font-size: 0.88rem; }
+.export-card {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1rem 1.25rem;
+  margin-top: 1rem;
+}
+.export-card h3 { margin: 0 0 0.35rem; font-size: 0.98rem; }
+.export-note { color: var(--muted); font-size: 0.85rem; margin: 0 0 0.75rem; }
+.export-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+.export-field { display: grid; gap: 0.25rem; font-size: 0.88rem; margin-bottom: 0.75rem; }
+.export-field input, .export-field textarea {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  padding: 0.35rem 0.5rem;
+  font: inherit;
 }
 
 /* Papelera */

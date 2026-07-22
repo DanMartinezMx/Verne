@@ -16,6 +16,8 @@ export interface ProjectManifest {
   language: string;
   /** Fecha de creación en ISO 8601. */
   createdAt: string;
+  /** Nombre del autor (para exportaciones). */
+  author?: string;
 }
 
 export function parseManifest(text: string): ProjectManifest {
@@ -49,13 +51,17 @@ export function parseManifest(text: string): ProjectManifest {
       `Blueprint desconocido: ${String(blueprint)} (soportados: ${BLUEPRINT_IDS.join(", ")})`,
     );
   }
-  return {
+  const manifest: ProjectManifest = {
     vpf,
     name: m["name"],
     blueprint: blueprint as BlueprintId,
     language: typeof m["language"] === "string" ? m["language"] : "es",
     createdAt: typeof m["createdAt"] === "string" ? m["createdAt"] : "",
   };
+  if (typeof m["author"] === "string" && m["author"].trim() !== "") {
+    manifest.author = m["author"];
+  }
+  return manifest;
 }
 
 export function serializeManifest(manifest: ProjectManifest): string {

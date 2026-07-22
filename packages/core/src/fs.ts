@@ -18,6 +18,8 @@ export interface VerneFs {
   mkdir(path: string): Promise<void>;
   readTextFile(path: string): Promise<string>;
   writeTextFile(path: string, contents: string): Promise<void>;
+  /** Escribe contenido binario (p. ej. un DOCX exportado). */
+  writeBinaryFile(path: string, contents: Uint8Array): Promise<void>;
   readDir(path: string): Promise<FsEntry[]>;
   /** Elimina recursivamente. */
   remove(path: string): Promise<void>;

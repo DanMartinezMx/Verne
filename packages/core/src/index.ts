@@ -53,6 +53,7 @@ export {
   openProject,
   readProjectTree,
   RESOURCES_DIR,
+  updateProjectManifest,
   type CreateProjectOptions,
   type Project,
   type TreeNode,

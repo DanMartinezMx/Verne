@@ -20,6 +20,9 @@ export const nodeFs: VerneFs = {
   async writeTextFile(path, contents) {
     await writeFile(path, contents, "utf8");
   },
+  async writeBinaryFile(path, contents) {
+    await writeFile(path, contents);
+  },
   async readDir(path): Promise<FsEntry[]> {
     const entries = await readdir(path, { withFileTypes: true });
     return entries.map((e) => ({ name: e.name, isDirectory: e.isDirectory() }));

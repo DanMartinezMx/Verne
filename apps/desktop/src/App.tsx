@@ -1,8 +1,9 @@
-import { open } from "@tauri-apps/plugin-dialog";
+import { open, save } from "@tauri-apps/plugin-dialog";
 import { getBlueprint, type BlueprintDef } from "@verne/blueprints";
 import {
   addCollectionEntry,
   CONTENT_DIR,
+  EXPORT_DIR,
   countWords,
   createProject,
   joinPath,
@@ -18,6 +19,7 @@ import {
   snapshotDocument,
   trashDocument,
   updateCollectionEntry,
+  updateProjectManifest,
   VerneError,
   withFrontmatterFields,
   writeDocument,
@@ -34,6 +36,7 @@ import { ProjectTree, type TreeDecoration } from "@verne/ui";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { DocHeader } from "./DocHeader.js";
 import { EnviosPanel } from "./EnviosPanel.js";
+import { ExportPanel } from "./ExportPanel.js";
 import { MarkdownEditor } from "./MarkdownEditor.js";
 import { Toolbar } from "./Toolbar.js";
 import { TrashPanel } from "./TrashPanel.js";
@@ -48,7 +51,7 @@ interface OpenDoc {
 }
 
 type SaveState = "saved" | "dirty" | "saving";
-type View = "doc" | "envios" | "papelera";
+type View = "doc" | "envios" | "papelera" | "exportar";
 
 export function App() {
   const [project, setProject] = useState<Project | null>(null);
@@ -60,6 +63,7 @@ export function App() {
   const [trashEntries, setTrashEntries] = useState<TrashEntry[]>([]);
   const [searchResults, setSearchResults] = useState<SearchResult[] | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [exportBody, setExportBody] = useState("");
   const [estadoFilter, setEstadoFilter] = useState<string | null>(null);
   const [error, setError] = useState<string>("");
   const [saveState, setSaveState] = useState<SaveState>("saved");
@@ -342,6 +346,56 @@ export function App() {
     setView(v);
   }
 
+  // ── Exportación ───────────────────────────────────────────────────────
+
+  async function handleOpenExport() {
+    const current = docRef.current;
+    if (!current) return;
+    try {
+      await saveNow();
+      const parts = await readDocument(tauriFs, current.node.path);
+      setExportBody(parts.body);
+      setView("exportar");
+    } catch (e) {
+      reportError(e);
+    }
+  }
+
+  async function handleSaveAuthor(author: string) {
+    const p = projectRef.current;
+    if (!p) return;
+    try {
+      setProject(await updateProjectManifest(tauriFs, p, { author }));
+    } catch (e) {
+      reportError(e);
+    }
+  }
+
+  async function handleSaveExportFile(
+    suggestedName: string,
+    contents: string | Uint8Array,
+  ): Promise<boolean> {
+    const p = projectRef.current;
+    if (!p) return false;
+    try {
+      const extension = suggestedName.split(".").pop() ?? "txt";
+      const target = await save({
+        defaultPath: joinPath(p.dir, EXPORT_DIR, suggestedName),
+        filters: [{ name: extension.toUpperCase(), extensions: [extension] }],
+      });
+      if (typeof target !== "string") return false;
+      if (typeof contents === "string") {
+        await tauriFs.writeTextFile(target, contents);
+      } else {
+        await tauriFs.writeBinaryFile(target, contents);
+      }
+      return true;
+    } catch (e) {
+      reportError(e);
+      return false;
+    }
+  }
+
   // ── Render ────────────────────────────────────────────────────────────
 
   if (!project || !blueprint) {
@@ -480,6 +534,17 @@ export function App() {
           />
         ) : view === "papelera" ? (
           <TrashPanel entries={trashEntries} onRestore={(entry) => void handleRestore(entry)} />
+        ) : view === "exportar" && doc ? (
+          <ExportPanel
+            blueprint={blueprint}
+            title={currentMeta?.title ?? doc.node.name}
+            body={exportBody}
+            author={project.manifest.author ?? ""}
+            language={project.manifest.language}
+            onSaveAuthor={(author) => void handleSaveAuthor(author)}
+            onSaveFile={handleSaveExportFile}
+            onClose={() => setView("doc")}
+          />
         ) : doc ? (
           <>
             <Toolbar
@@ -496,6 +561,7 @@ export function App() {
               onChangeTags={(tags) =>
                 void updateDocMetadata({ tags: tags.length > 0 ? tags : undefined })
               }
+              onExport={() => void handleOpenExport()}
               onTrash={() => void handleTrash()}
             />
             <MarkdownEditor

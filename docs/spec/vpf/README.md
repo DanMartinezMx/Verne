@@ -39,6 +39,7 @@ Los nombres de carpeta (`contenido`, `colecciones`, `recursos`, `export`, `papel
 | `blueprint` | string | sí | Tipo de proyecto. En 0.1: `blog` \| `cuento` |
 | `language` | string | no (def. `es`) | Código BCP 47 del idioma principal |
 | `createdAt` | string | no | Fecha ISO 8601 de creación |
+| `author` | string | no | Nombre del autor (lo usan las exportaciones) |
 
 Campos desconocidos se preservan y se ignoran (compatibilidad hacia delante).
 

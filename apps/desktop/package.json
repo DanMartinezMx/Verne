@@ -16,6 +16,7 @@
     "@verne/blueprints": "workspace:*",
     "@verne/core": "workspace:*",
     "@verne/editor": "workspace:*",
+    "@verne/export": "workspace:*",
     "@verne/ui": "workspace:*",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"

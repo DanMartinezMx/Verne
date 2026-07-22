@@ -1,3 +1,4 @@
+import { parseDocument } from "yaml";
 import { VerneError } from "./errors.js";
 import { joinPath, type VerneFs } from "./fs.js";
 import {
@@ -76,6 +77,23 @@ export async function openProject(fs: VerneFs, dir: string): Promise<Project> {
     await fs.mkdir(joinPath(dir, INTERNAL_DIR));
   }
   return { dir, manifest };
+}
+
+/** Actualiza campos del manifiesto preservando campos y comentarios ajenos. */
+export async function updateProjectManifest(
+  fs: VerneFs,
+  project: Project,
+  changes: Partial<Pick<ProjectManifest, "name" | "author" | "language">>,
+): Promise<Project> {
+  const path = joinPath(project.dir, MANIFEST_FILE);
+  const doc = parseDocument(await fs.readTextFile(path));
+  for (const [key, value] of Object.entries(changes)) {
+    if (value === undefined || value === "") doc.delete(key);
+    else doc.set(key, value);
+  }
+  const text = doc.toString();
+  await fs.writeTextFile(path, text);
+  return { dir: project.dir, manifest: parseManifest(text) };
 }
 
 export async function readProjectTree(fs: VerneFs, project: Project): Promise<TreeNode[]> {
