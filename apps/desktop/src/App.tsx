@@ -43,6 +43,28 @@ import { TrashPanel } from "./TrashPanel.js";
 import { tauriFs } from "./tauri-fs.js";
 
 const AUTOSAVE_DELAY_MS = 800;
+const RECENTS_KEY = "verne.recent-projects";
+const RECENTS_MAX = 8;
+
+interface RecentProject {
+  dir: string;
+  name: string;
+  blueprint: BlueprintId;
+  lastOpened: string;
+}
+
+function loadRecents(): RecentProject[] {
+  try {
+    const parsed: unknown = JSON.parse(localStorage.getItem(RECENTS_KEY) ?? "[]");
+    return Array.isArray(parsed) ? (parsed as RecentProject[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveRecents(recents: RecentProject[]): void {
+  localStorage.setItem(RECENTS_KEY, JSON.stringify(recents));
+}
 
 interface OpenDoc {
   node: TreeNode;
@@ -70,6 +92,7 @@ export function App() {
   const [words, setWords] = useState(0);
   const [focusMode, setFocusMode] = useState(false);
   const [formatState, setFormatState] = useState<FormatState | null>(null);
+  const [recents, setRecents] = useState<RecentProject[]>(loadRecents);
 
   const editorRef = useRef<ProseEditorHandle | null>(null);
   const docRef = useRef<OpenDoc | null>(null);
@@ -175,7 +198,58 @@ export function App() {
     setWords(0);
     setError("");
     snapshottedRef.current.clear();
+    rememberRecent(p);
     await refreshProjectData(p);
+  }
+
+  function rememberRecent(p: Project) {
+    const entry: RecentProject = {
+      dir: p.dir,
+      name: p.manifest.name,
+      blueprint: p.manifest.blueprint,
+      lastOpened: new Date().toISOString(),
+    };
+    setRecents((prev) => {
+      const next = [entry, ...prev.filter((r) => r.dir !== p.dir)].slice(0, RECENTS_MAX);
+      saveRecents(next);
+      return next;
+    });
+  }
+
+  // Al arrancar, reabre el último proyecto usado (si sigue existiendo).
+  useEffect(() => {
+    const last = loadRecents()[0];
+    if (!last) return;
+    void (async () => {
+      try {
+        await loadProject(await openProject(tauriFs, last.dir));
+      } catch {
+        // La carpeta ya no está o no es un proyecto: se queda en Inicio.
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function handleOpenRecent(recent: RecentProject) {
+    try {
+      await loadProject(await openProject(tauriFs, recent.dir));
+    } catch (e) {
+      setRecents((prev) => {
+        const next = prev.filter((r) => r.dir !== recent.dir);
+        saveRecents(next);
+        return next;
+      });
+      reportError(e);
+    }
+  }
+
+  /** Vuelve a Inicio (cambiar de proyecto) sin cerrar la app. */
+  async function handleGoHome() {
+    await saveNow();
+    setProject(null);
+    setDoc(null);
+    setFormatState(null);
+    setError("");
   }
 
   function reportError(e: unknown) {
@@ -399,7 +473,15 @@ export function App() {
   // ── Render ────────────────────────────────────────────────────────────
 
   if (!project || !blueprint) {
-    return <Welcome onOpen={handleOpenProject} onCreate={handleCreateProject} error={error} />;
+    return (
+      <Welcome
+        recents={recents}
+        onOpenRecent={(r) => void handleOpenRecent(r)}
+        onOpen={handleOpenProject}
+        onCreate={handleCreateProject}
+        error={error}
+      />
+    );
   }
 
   const metaByPath = new Map(docsMeta.map((m) => [m.path, m]));
@@ -516,8 +598,8 @@ export function App() {
           <button type="button" className="linklike" onClick={() => void switchView("papelera")}>
             Papelera ({trashEntries.length})
           </button>
-          <button type="button" onClick={handleOpenProject}>
-            Abrir otro proyecto…
+          <button type="button" onClick={() => void handleGoHome()}>
+            ⌂ Cambiar de proyecto
           </button>
         </footer>
       </aside>
@@ -698,10 +780,14 @@ function NewDocumentForm({
 }
 
 function Welcome({
+  recents,
+  onOpenRecent,
   onOpen,
   onCreate,
   error,
 }: {
+  recents: RecentProject[];
+  onOpenRecent: (recent: RecentProject) => void;
   onOpen: () => void;
   onCreate: (name: string, blueprint: BlueprintId) => void;
   error: string;
@@ -714,6 +800,24 @@ function Welcome({
       <h1>Verne</h1>
       <p className="tagline">Tus palabras, en tus archivos.</p>
       {error && <p className="error">{error}</p>}
+      {recents.length > 0 && (
+        <section className="card">
+          <h2>Tus proyectos</h2>
+          <ul className="recents">
+            {recents.map((r) => (
+              <li key={r.dir}>
+                <button type="button" className="recent" onClick={() => onOpenRecent(r)}>
+                  <span className="recent-name">{r.name}</span>
+                  <span className="recent-meta">
+                    <span className="badge">{r.blueprint === "blog" ? "Blog" : "Cuentos"}</span>
+                    <span className="recent-dir">{r.dir}</span>
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
       <section className="card">
         <h2>Crear un proyecto</h2>
         <form

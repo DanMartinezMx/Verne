@@ -73,6 +73,29 @@ button[type="submit"] {
   background: var(--bg);
 }
 
+/* Proyectos recientes en Inicio */
+.recents { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.35rem; }
+.recent {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: transparent;
+  padding: 0.5rem 0.75rem;
+}
+.recent:hover { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, transparent); }
+.recent-name { display: block; font-weight: 600; margin-bottom: 0.2rem; }
+.recent-meta { display: flex; align-items: center; gap: 0.5rem; min-width: 0; }
+.recent-dir {
+  color: var(--muted);
+  font-size: 0.75rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  direction: rtl; /* recorta por la izquierda: el final de la ruta es lo útil */
+}
+
 /* Espacio de trabajo */
 .workspace {
   display: grid;
