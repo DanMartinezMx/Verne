@@ -21,6 +21,8 @@ export interface VerneFs {
   readDir(path: string): Promise<FsEntry[]>;
   /** Elimina recursivamente. */
   remove(path: string): Promise<void>;
+  /** Mueve/renombra un archivo o carpeta. */
+  rename(from: string, to: string): Promise<void>;
 }
 
 export function joinPath(...parts: string[]): string {

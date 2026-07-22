@@ -13,6 +13,7 @@
     "@tauri-apps/api": "^2.0.0",
     "@tauri-apps/plugin-dialog": "^2.0.0",
     "@tauri-apps/plugin-fs": "^2.0.0",
+    "@verne/blueprints": "workspace:*",
     "@verne/core": "workspace:*",
     "@verne/editor": "workspace:*",
     "@verne/ui": "workspace:*",

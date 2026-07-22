@@ -1,0 +1,7 @@
+# Colección de envíos: a qué mercado se envió cada cuento y qué respondieron.
+fields:
+  cuento: { type: string, label: Cuento }
+  mercado: { type: string, label: Mercado (revista, concurso, antología) }
+  fechaEnvio: { type: date, label: Fecha de envío }
+  respuesta: { type: string, label: Respuesta }
+  fechaRespuesta: { type: date, label: Fecha de respuesta }

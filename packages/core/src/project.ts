@@ -33,33 +33,9 @@ export interface CreateProjectOptions {
   name: string;
   blueprint: BlueprintId;
   language?: string;
+  /** Documento inicial (lo aporta el Blueprint; core no conoce plantillas). */
+  starterDocument?: { fileName: string; contents: string };
 }
-
-const STARTER_DOCUMENTS: Record<BlueprintId, { file: string; body: string }> = {
-  blog: {
-    file: "mi-primera-entrada.md",
-    body: `---
-title: Mi primera entrada
-estado: idea
-tags: []
----
-
-Escribe aquí. Esta entrada es tuya: es un archivo Markdown normal dentro de la
-carpeta \`${CONTENT_DIR}/\` de tu proyecto.
-`,
-  },
-  cuento: {
-    file: "mi-primer-cuento.md",
-    body: `---
-title: Mi primer cuento
-estado: idea
----
-
-Había una vez un archivo Markdown normal, dentro de la carpeta
-\`${CONTENT_DIR}/\` de tu proyecto, esperando a que lo escribieras.
-`,
-  },
-};
 
 export async function createProject(
   fs: VerneFs,
@@ -79,8 +55,12 @@ export async function createProject(
   for (const sub of [CONTENT_DIR, RESOURCES_DIR, EXPORT_DIR, INTERNAL_DIR]) {
     await fs.mkdir(joinPath(dir, sub));
   }
-  const starter = STARTER_DOCUMENTS[options.blueprint];
-  await fs.writeTextFile(joinPath(dir, CONTENT_DIR, starter.file), starter.body);
+  if (options.starterDocument) {
+    await fs.writeTextFile(
+      joinPath(dir, CONTENT_DIR, options.starterDocument.fileName),
+      options.starterDocument.contents,
+    );
+  }
   await fs.writeTextFile(joinPath(dir, MANIFEST_FILE), serializeManifest(manifest));
   return { dir, manifest };
 }

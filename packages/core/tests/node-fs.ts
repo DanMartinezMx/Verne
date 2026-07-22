@@ -1,4 +1,4 @@
-import { mkdir, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import type { FsEntry, VerneFs } from "../src/fs.js";
 
 /** Adaptador de node:fs para tests. Las apps inyectan el suyo (Tauri, OPFS…). */
@@ -26,5 +26,8 @@ export const nodeFs: VerneFs = {
   },
   async remove(path) {
     await rm(path, { recursive: true, force: true });
+  },
+  async rename(from, to) {
+    await rename(from, to);
   },
 };

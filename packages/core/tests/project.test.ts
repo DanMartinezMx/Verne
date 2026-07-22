@@ -59,7 +59,11 @@ describe("createProject / openProject", () => {
 
 describe("readProjectTree", () => {
   it("lee carpetas y documentos .md anidados, ordenados y sin ocultos", async () => {
-    const project = await createProject(nodeFs, dir, { name: "Cuentos", blueprint: "cuento" });
+    const project = await createProject(nodeFs, dir, {
+      name: "Cuentos",
+      blueprint: "cuento",
+      starterDocument: { fileName: "mi-primer-cuento.md", contents: "# Hola\n" },
+    });
     const content = joinPath(dir, CONTENT_DIR);
     await nodeFs.mkdir(joinPath(content, "02-terminados"));
     await nodeFs.mkdir(joinPath(content, "01-en-curso"));

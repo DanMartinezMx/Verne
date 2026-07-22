@@ -1,4 +1,12 @@
 export {
+  addCollectionEntry,
+  COLLECTIONS_DIR,
+  ensureCollection,
+  listCollection,
+  updateCollectionEntry,
+  type CollectionEntry,
+} from "./collections.js";
+export {
   countWords,
   joinDocument,
   readDocument,
@@ -8,7 +16,25 @@ export {
   writeDocument,
   type DocumentParts,
 } from "./document.js";
+export {
+  readDocumentMeta,
+  readProjectDocuments,
+  type DocumentMeta,
+} from "./documents-index.js";
 export { VerneError, type VerneErrorCode } from "./errors.js";
+export {
+  getFrontmatterFields,
+  readTags,
+  withFrontmatterFields,
+} from "./frontmatter.js";
+export { searchProject, type SearchResult } from "./search.js";
+export {
+  listTrash,
+  restoreDocument,
+  TRASH_DIR,
+  trashDocument,
+  type TrashEntry,
+} from "./trash.js";
 export { joinPath, type FsEntry, type VerneFs } from "./fs.js";
 export {
   BLUEPRINT_IDS,

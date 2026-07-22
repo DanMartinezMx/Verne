@@ -1,1 +1,1 @@
-export { ProjectTree, type ProjectTreeProps } from "./ProjectTree.js";
+export { ProjectTree, type ProjectTreeProps, type TreeDecoration } from "./ProjectTree.js";

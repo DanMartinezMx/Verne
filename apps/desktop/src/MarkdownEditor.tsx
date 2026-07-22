@@ -4,7 +4,8 @@ import { useEffect, useRef } from "react";
 interface MarkdownEditorProps {
   /** Cuerpo Markdown inicial. El componente se monta con key=ruta del doc. */
   initialBody: string;
-  onReady: (handle: ProseEditorHandle) => void;
+  /** Recibe el handle al montar y null al desmontar. */
+  onReady: (handle: ProseEditorHandle | null) => void;
   onDocChanged: () => void;
   onFormatStateChanged: (state: FormatState) => void;
 }
@@ -31,7 +32,10 @@ export function MarkdownEditor({
     });
     callbacksRef.current.onReady(handle);
     handle.focus();
-    return () => handle.destroy();
+    return () => {
+      handle.destroy();
+      callbacksRef.current.onReady(null);
+    };
     // Montaje único por documento: el padre nos remonta con key={path}.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

@@ -4,6 +4,7 @@ import {
   readDir,
   readTextFile,
   remove,
+  rename,
   writeTextFile,
 } from "@tauri-apps/plugin-fs";
 import type { VerneFs } from "@verne/core";
@@ -17,4 +18,5 @@ export const tauriFs: VerneFs = {
   readDir: async (path) =>
     (await readDir(path)).map((e) => ({ name: e.name, isDirectory: e.isDirectory })),
   remove: (path) => remove(path, { recursive: true }),
+  rename: (from, to) => rename(from, to),
 };

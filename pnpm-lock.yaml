@@ -26,6 +26,9 @@ importers:
       '@tauri-apps/plugin-fs':
         specifier: ^2.0.0
         version: 2.5.1
+      '@verne/blueprints':
+        specifier: workspace:*
+        version: link:../../packages/blueprints
       '@verne/core':
         specifier: workspace:*
         version: link:../../packages/core
@@ -60,6 +63,19 @@ importers:
       vite:
         specifier: ^6.0.0
         version: 6.4.3(yaml@2.9.0)
+
+  packages/blueprints:
+    dependencies:
+      '@verne/core':
+        specifier: workspace:*
+        version: link:../core
+    devDependencies:
+      typescript:
+        specifier: ^5.7.0
+        version: 5.9.3
+      vitest:
+        specifier: ^3.0.0
+        version: 3.2.7(yaml@2.9.0)
 
   packages/core:
     dependencies:
