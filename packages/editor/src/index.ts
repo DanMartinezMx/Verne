@@ -1,4 +1,10 @@
 export {
+  type BlockKind,
+  type CommandPayload,
+  type EditorCommandName,
+  type FormatState,
+} from "./commands.js";
+export {
   createProseEditor,
   type ProseEditorHandle,
   type ProseEditorOptions,

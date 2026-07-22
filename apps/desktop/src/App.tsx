@@ -14,10 +14,11 @@ import {
   type Project,
   type TreeNode,
 } from "@verne/core";
-import type { ProseEditorHandle } from "@verne/editor";
+import type { FormatState, ProseEditorHandle } from "@verne/editor";
 import { ProjectTree } from "@verne/ui";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { MarkdownEditor } from "./MarkdownEditor.js";
+import { Toolbar } from "./Toolbar.js";
 import { tauriFs } from "./tauri-fs.js";
 
 const BLUEPRINT_LABELS: Record<BlueprintId, string> = {
@@ -43,6 +44,7 @@ export function App() {
   const [saveState, setSaveState] = useState<SaveState>("saved");
   const [words, setWords] = useState(0);
   const [focusMode, setFocusMode] = useState(false);
+  const [formatState, setFormatState] = useState<FormatState | null>(null);
 
   const editorRef = useRef<ProseEditorHandle | null>(null);
   const docRef = useRef<OpenDoc | null>(null);
@@ -122,6 +124,7 @@ export function App() {
     setProject(p);
     await refreshTree(p);
     setDoc(null);
+    setFormatState(null);
     setWords(0);
     setError("");
     snapshottedRef.current.clear();
@@ -213,6 +216,12 @@ export function App() {
         </footer>
       </aside>
       <main className="main">
+        {doc && (
+          <Toolbar
+            state={formatState}
+            onCommand={(name, payload) => editorRef.current?.exec(name, payload)}
+          />
+        )}
         {error && <p className="error">{error}</p>}
         {doc ? (
           <MarkdownEditor
@@ -222,6 +231,7 @@ export function App() {
               editorRef.current = handle;
             }}
             onDocChanged={handleDocChanged}
+            onFormatStateChanged={setFormatState}
           />
         ) : (
           <p className="placeholder">

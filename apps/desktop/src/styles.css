@@ -139,9 +139,75 @@ button[type="submit"] {
 .tree-empty { color: var(--muted); font-size: 0.9rem; }
 
 /* Panel principal */
-.main { padding: 1.25rem 1.5rem 0; overflow-y: auto; }
-.placeholder { color: var(--muted); }
-.editor-surface { min-height: 100%; cursor: text; }
+.main { padding: 0; overflow-y: auto; }
+.placeholder { color: var(--muted); padding: 1.25rem 1.5rem; }
+.main > .error { margin: 1rem 1.5rem; }
+.editor-surface { min-height: 100%; cursor: text; padding: 1rem 1.5rem 0; }
+
+/* Barra de formato */
+.toolbar-wrap {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+}
+.toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.15rem;
+  padding: 0.35rem 0.75rem;
+}
+.toolbar-btn {
+  border: none;
+  background: transparent;
+  border-radius: 6px;
+  min-width: 2rem;
+  padding: 0.3rem 0.45rem;
+  font-size: 0.9rem;
+  line-height: 1;
+  color: var(--fg);
+}
+.toolbar-btn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+.toolbar-btn[aria-pressed="true"] {
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  color: var(--accent);
+}
+.toolbar-btn:disabled { opacity: 0.35; cursor: default; }
+.toolbar-block {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  padding: 0.25rem 0.4rem;
+  font-size: 0.85rem;
+  max-width: 10rem;
+}
+.toolbar-sep {
+  width: 1px;
+  align-self: stretch;
+  margin: 0.2rem 0.4rem;
+  background: var(--border);
+}
+.link-form {
+  display: flex;
+  gap: 0.4rem;
+  padding: 0.4rem 0.75rem;
+  border-top: 1px solid var(--border);
+}
+.link-form input {
+  flex: 1;
+  max-width: 24rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.3rem 0.5rem;
+  background: var(--bg);
+}
+
+/* En modo enfoque la barra desaparece con el resto de la interfaz (P14) */
+.workspace--focus .toolbar-wrap { display: none; }
 
 /* Barra de estado */
 .statusbar {

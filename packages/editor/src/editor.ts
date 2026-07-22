@@ -12,6 +12,13 @@ import { keymap } from "prosemirror-keymap";
 import { liftListItem, sinkListItem, splitListItem } from "prosemirror-schema-list";
 import { EditorState, Plugin } from "prosemirror-state";
 import { EditorView } from "prosemirror-view";
+import {
+  commandByName,
+  computeFormatState,
+  type CommandPayload,
+  type EditorCommandName,
+  type FormatState,
+} from "./commands.js";
 import { docToMarkdown, markdownToDoc, proseSchema } from "./markdown.js";
 
 export interface ProseEditorOptions {
@@ -19,10 +26,15 @@ export interface ProseEditorOptions {
   initialMarkdown: string;
   /** Se invoca en cada transacción que cambia el documento. */
   onDocChanged?: () => void;
+  /** Se invoca en cada transacción (incluida la selección) con el estado de formato. */
+  onFormatStateChanged?: (state: FormatState) => void;
 }
 
 export interface ProseEditorHandle {
   getMarkdown(): string;
+  /** Ejecuta un comando de formato y devuelve el foco al editor. */
+  exec(name: EditorCommandName, payload?: CommandPayload): void;
+  getFormatState(): FormatState;
   focus(): void;
   destroy(): void;
 }
@@ -43,11 +55,19 @@ export function createProseEditor(options: ProseEditorOptions): ProseEditorHandl
     dispatchTransaction(tr) {
       view.updateState(view.state.apply(tr));
       if (tr.docChanged) options.onDocChanged?.();
+      options.onFormatStateChanged?.(computeFormatState(view.state));
     },
   });
 
+  options.onFormatStateChanged?.(computeFormatState(view.state));
+
   return {
     getMarkdown: () => docToMarkdown(view.state.doc),
+    exec: (name, payload) => {
+      commandByName(name, payload)(view.state, view.dispatch);
+      view.focus();
+    },
+    getFormatState: () => computeFormatState(view.state),
     focus: () => view.focus(),
     destroy: () => view.destroy(),
   };

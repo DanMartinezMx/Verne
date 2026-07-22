@@ -1,4 +1,4 @@
-import { createProseEditor, type ProseEditorHandle } from "@verne/editor";
+import { createProseEditor, type FormatState, type ProseEditorHandle } from "@verne/editor";
 import { useEffect, useRef } from "react";
 
 interface MarkdownEditorProps {
@@ -6,13 +6,19 @@ interface MarkdownEditorProps {
   initialBody: string;
   onReady: (handle: ProseEditorHandle) => void;
   onDocChanged: () => void;
+  onFormatStateChanged: (state: FormatState) => void;
 }
 
 /** Puente React → @verne/editor. Sin ProseMirror aquí: solo la API pública. */
-export function MarkdownEditor({ initialBody, onReady, onDocChanged }: MarkdownEditorProps) {
+export function MarkdownEditor({
+  initialBody,
+  onReady,
+  onDocChanged,
+  onFormatStateChanged,
+}: MarkdownEditorProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const callbacksRef = useRef({ onReady, onDocChanged });
-  callbacksRef.current = { onReady, onDocChanged };
+  const callbacksRef = useRef({ onReady, onDocChanged, onFormatStateChanged });
+  callbacksRef.current = { onReady, onDocChanged, onFormatStateChanged };
 
   useEffect(() => {
     const parent = containerRef.current;
@@ -21,6 +27,7 @@ export function MarkdownEditor({ initialBody, onReady, onDocChanged }: MarkdownE
       parent,
       initialMarkdown: initialBody,
       onDocChanged: () => callbacksRef.current.onDocChanged(),
+      onFormatStateChanged: (state) => callbacksRef.current.onFormatStateChanged(state),
     });
     callbacksRef.current.onReady(handle);
     handle.focus();
