@@ -1,3 +1,13 @@
+export {
+  countWords,
+  joinDocument,
+  readDocument,
+  SNAPSHOT_KEEP,
+  snapshotDocument,
+  splitFrontmatter,
+  writeDocument,
+  type DocumentParts,
+} from "./document.js";
 export { VerneError, type VerneErrorCode } from "./errors.js";
 export { joinPath, type FsEntry, type VerneFs } from "./fs.js";
 export {

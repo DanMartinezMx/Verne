@@ -77,8 +77,29 @@ button[type="submit"] {
 .workspace {
   display: grid;
   grid-template-columns: 16rem 1fr;
+  grid-template-rows: 1fr auto;
+  grid-template-areas:
+    "sidebar main"
+    "sidebar statusbar";
   height: 100vh;
 }
+.sidebar { grid-area: sidebar; }
+.main { grid-area: main; }
+.statusbar { grid-area: statusbar; }
+
+/* Modo enfoque (P14): la interfaz desaparece; solo quedan las palabras */
+.workspace--focus {
+  grid-template-columns: 1fr;
+  grid-template-areas:
+    "main"
+    "statusbar";
+}
+.workspace--focus .sidebar { display: none; }
+.workspace--focus .statusbar {
+  opacity: 0.25;
+  transition: opacity 0.2s;
+}
+.workspace--focus .statusbar:hover { opacity: 1; }
 .sidebar {
   background: var(--sidebar-bg);
   border-right: 1px solid var(--border);
@@ -118,12 +139,39 @@ button[type="submit"] {
 .tree-empty { color: var(--muted); font-size: 0.9rem; }
 
 /* Panel principal */
-.main { padding: 1.25rem 1.5rem; overflow-y: auto; }
+.main { padding: 1.25rem 1.5rem 0; overflow-y: auto; }
 .placeholder { color: var(--muted); }
-.preview-note { color: var(--muted); font-size: 0.85rem; }
-.preview pre {
-  white-space: pre-wrap;
-  font-family: ui-monospace, "Cascadia Code", monospace;
-  font-size: 0.95rem;
-  line-height: 1.6;
+.editor-surface { min-height: 100%; cursor: text; }
+
+/* Barra de estado */
+.statusbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  border-top: 1px solid var(--border);
+  padding: 0.3rem 1rem;
+  font-size: 0.8rem;
+  color: var(--muted);
 }
+.statusbar-right { display: flex; gap: 1rem; align-items: center; }
+.linklike {
+  border: none;
+  background: none;
+  padding: 0;
+  color: var(--accent);
+  font-size: inherit;
+}
+
+/* Formulario de documento nuevo */
+.new-doc { display: flex; gap: 0.35rem; margin-bottom: 0.75rem; }
+.new-doc input {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.3rem 0.5rem;
+  background: var(--bg);
+  font-size: 0.88rem;
+}
+.new-doc button { padding: 0.3rem 0.6rem; }

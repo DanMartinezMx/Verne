@@ -37,7 +37,7 @@ module.exports = {
       name: "webview-safe",
       comment: "core y ui corren dentro del WebView: prohibidos los builtins de Node",
       severity: "error",
-      from: { path: "^(packages/core|packages/ui)/src" },
+      from: { path: "^(packages/core|packages/ui|packages/editor)/src" },
       to: { dependencyTypes: ["core"] },
     },
     {
