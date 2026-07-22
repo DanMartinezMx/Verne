@@ -1,6 +1,6 @@
 {
   "identifier": "default",
-  "description": "Capacidades M0: diálogos nativos y archivos dentro del perfil del usuario",
+  "description": "Diálogos nativos y archivos dentro del perfil del usuario. Regla: cada método de tauri-fs.ts necesita su permiso aquí — al añadir uno allá, añadirlo acá.",
   "windows": ["main"],
   "permissions": [
     "core:default",
@@ -9,8 +9,10 @@
     "fs:allow-mkdir",
     "fs:allow-read-text-file",
     "fs:allow-write-text-file",
+    "fs:allow-write-file",
     "fs:allow-read-dir",
     "fs:allow-remove",
+    "fs:allow-rename",
     {
       "identifier": "fs:scope",
       "allow": [
