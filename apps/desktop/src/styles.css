@@ -115,6 +115,44 @@ button[type="submit"] {
   text-align: left;
 }
 
+/* Aviso de nueva versión (discreto, no bloqueante) */
+.update-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin: 0.75rem 1.5rem 0;
+  padding: 0.6rem 0.9rem;
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--border));
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  border-radius: 10px;
+  font-size: 0.9rem;
+}
+.welcome .update-banner { margin: 0.75rem 0 0; }
+.update-actions { display: flex; align-items: center; gap: 0.6rem; }
+.update-download {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: white;
+  padding: 0.3rem 0.75rem;
+}
+.welcome-footer {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 1.5rem;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+.welcome-uptodate { color: var(--accent); }
+
+/* Adopción de una carpeta existente como proyecto Verne */
+.card--convert { border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); }
+.convert-note { color: var(--muted); font-size: 0.85rem; margin: 0 0 0.75rem; }
+.convert-note code { word-break: break-all; }
+.convert-actions { display: flex; align-items: center; gap: 0.75rem; }
+
 /* Espacio de trabajo */
 .workspace {
   display: grid;
@@ -487,6 +525,61 @@ button[type="submit"] {
   padding-top: 0.75rem;
 }
 
+/* Panel de historial */
+.history { padding: 1.25rem 1.5rem; max-width: 60rem; }
+.history-layout {
+  display: grid;
+  grid-template-columns: minmax(12rem, 18rem) 1fr;
+  gap: 1rem;
+  margin: 1rem 0 1.25rem;
+  align-items: start;
+}
+.history-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.25rem; }
+.history-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  width: 100%;
+  text-align: left;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.5rem 0.7rem;
+  background: transparent;
+}
+.history-item:hover { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+.history-item--active {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+}
+.history-when { font-size: 0.85rem; }
+.history-words { font-size: 0.72rem; color: var(--muted); }
+.history-preview {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.history-preview-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.6rem 0.8rem;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+.history-body {
+  margin: 0;
+  padding: 0.9rem 1rem;
+  max-height: 55vh;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 0.95rem;
+  line-height: 1.6;
+}
+
 /* Papelera */
 .trash { padding: 1.25rem 1.5rem; max-width: 46rem; }
 .trash h2 { margin-top: 0; }
@@ -501,8 +594,54 @@ button[type="submit"] {
 .trash-name { flex: 1; }
 .trash-date { color: var(--muted); font-size: 0.8rem; }
 
+/* Acciones de organización del árbol (renombrar / mover) */
+.tree-row { display: flex; align-items: center; gap: 0.2rem; }
+.tree-row .tree-item { flex: 1; min-width: 0; }
+.tree-actions {
+  display: none;
+  align-items: center;
+  gap: 0.15rem;
+  flex-shrink: 0;
+}
+.tree-row:hover .tree-actions,
+.tree-row:focus-within .tree-actions { display: flex; }
+.tree-action {
+  border: none;
+  background: transparent;
+  padding: 0.1rem 0.3rem;
+  font-size: 0.8rem;
+  color: var(--muted);
+  border-radius: 4px;
+}
+.tree-action:hover { background: color-mix(in srgb, var(--accent) 15%, transparent); color: var(--fg); }
+.tree-move {
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg);
+  font-size: 0.7rem;
+  padding: 0.05rem 0.15rem;
+  max-width: 5rem;
+  color: var(--muted);
+}
+.tree-rename {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  padding: 0.2rem 0.4rem;
+  background: var(--bg);
+  font-size: 0.88rem;
+}
+.new-folder-toggle {
+  display: block;
+  margin: -0.4rem 0 0.75rem;
+  font-size: 0.82rem;
+  padding: 0;
+}
+
 /* Formulario de documento nuevo */
 .new-doc { display: flex; gap: 0.35rem; margin-bottom: 0.75rem; }
+.new-folder { margin-top: -0.4rem; }
 .new-doc input {
   flex: 1;
   min-width: 0;

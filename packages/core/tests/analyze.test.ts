@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { analyzeText, countSyllables } from "../src/analyze.js";
+import { analyzeInline, analyzeText, countSyllables } from "../src/analyze.js";
 
 describe("countSyllables (aproximado)", () => {
   it("cuenta razonablemente palabras comunes", () => {
@@ -82,3 +82,56 @@ describe("analyzeText", () => {
     expect(report.findings.find((f) => f.category === "repeticion")).toBeUndefined();
   });
 });
+
+describe("analyzeInline (hallazgos situados)", () => {
+  it("apunta la segunda aparición de una repetición con offsets exactos", () => {
+    const text = "El faro iluminaba la bahía. La luz del faro no dejaba dormir.";
+    const finding = analyzeInline(text).find((f) => f.category === "repeticion");
+    expect(finding).toBeDefined();
+    // el tramo señalado ES la palabra repetida, no otra cosa
+    expect(text.slice(finding!.from, finding!.to)).toBe("faro");
+    // y es la SEGUNDA aparición (la primera está antes del índice 20)
+    expect(finding!.from).toBeGreaterThan(20);
+  });
+
+  it("subraya la frase larga completa", () => {
+    const larga = Array.from({ length: 45 }, (_, i) => `palabra${i}`).join(" ") + ".";
+    const finding = analyzeInline(larga).find((f) => f.category === "frase-larga");
+    expect(finding).toBeDefined();
+    expect(finding!.from).toBe(0);
+    expect(text_at(larga, finding!)).toContain("palabra0");
+    expect(text_at(larga, finding!)).toContain("palabra44");
+  });
+
+  it("señala cada adverbio -mente cuando hay dos en la frase", () => {
+    const text = "Caminaba lentamente y hablaba pausadamente con ella.";
+    const mente = analyzeInline(text).filter((f) => f.category === "adverbio-mente");
+    expect(mente.map((f) => text.slice(f.from, f.to))).toEqual(["lentamente", "pausadamente"]);
+  });
+
+  it("localiza muletillas con acento sin desplazar los offsets", () => {
+    const text = "Básicamente falla el ritmo. La escena, básicamente, no avanza.";
+    const spots = analyzeInline(text).filter((f) => f.category === "muletilla");
+    expect(spots.length).toBe(2);
+    for (const spot of spots) {
+      expect(text.slice(spot.from, spot.to).toLowerCase()).toBe("básicamente");
+    }
+  });
+
+  it("una muletilla suelta no se subraya (puede ser deliberada)", () => {
+    const spots = analyzeInline("Obviamente todo salió bien al final del día.").filter(
+      (f) => f.category === "muletilla",
+    );
+    expect(spots).toEqual([]);
+  });
+
+  it("devuelve los hallazgos ordenados por posición", () => {
+    const text = "Básicamente el faro. La luz del faro. La escena, básicamente, cae.";
+    const froms = analyzeInline(text).map((f) => f.from);
+    expect(froms).toEqual([...froms].sort((a, b) => a - b));
+  });
+});
+
+function text_at(text: string, finding: { from: number; to: number }): string {
+  return text.slice(finding.from, finding.to);
+}

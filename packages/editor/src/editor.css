@@ -68,6 +68,48 @@
 .ProseMirror img { max-width: 100%; }
 .ProseMirror a { color: var(--accent, inherit); }
 
+/* Subrayados de calidad en línea (decoraciones del editor, P16).
+   Señalan mecánica sin regañar: una onda de color con su explicación al pasar
+   el cursor. Los colores se abren en tema oscuro para mantener el contraste. */
+:root {
+  --uc-repeticion: #b45309;
+  --uc-frase-larga: #1d4ed8;
+  --uc-adverbio-mente: #6d28d9;
+  --uc-muletilla: #0f766e;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --uc-repeticion: #fbbf24;
+    --uc-frase-larga: #93b4fd;
+    --uc-adverbio-mente: #c4b5fd;
+    --uc-muletilla: #5eead4;
+  }
+}
+:root[data-theme="dark"] {
+  --uc-repeticion: #fbbf24;
+  --uc-frase-larga: #93b4fd;
+  --uc-adverbio-mente: #c4b5fd;
+  --uc-muletilla: #5eead4;
+}
+.ProseMirror .uc {
+  text-decoration-line: underline;
+  text-decoration-style: wavy;
+  text-decoration-skip-ink: none;
+  text-underline-offset: 3px;
+  cursor: help;
+}
+.ProseMirror .uc--repeticion { text-decoration-color: var(--uc-repeticion); }
+.ProseMirror .uc--adverbio-mente { text-decoration-color: var(--uc-adverbio-mente); }
+.ProseMirror .uc--muletilla { text-decoration-color: var(--uc-muletilla); }
+/* La frase larga es un tramo largo: un tinte suave lee mejor que una onda
+   kilométrica, y deja ver los subrayados de palabra que caen dentro. */
+.ProseMirror .uc--frase-larga {
+  text-decoration-line: none;
+  background: color-mix(in srgb, var(--uc-frase-larga) 13%, transparent);
+  border-radius: 2px;
+  cursor: help;
+}
+
 /* Selección de nodo y gap cursor */
 .ProseMirror-selectednode { outline: 2px solid var(--accent, #4f46e5); }
 .ProseMirror-gapcursor {

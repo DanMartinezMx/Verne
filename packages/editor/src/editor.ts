@@ -19,6 +19,12 @@ import {
   type EditorCommandName,
   type FormatState,
 } from "./commands.js";
+import {
+  getPlainText,
+  inlineDecorationsPlugin,
+  setDecorationsMeta,
+  type InlineDecoration,
+} from "./decorations.js";
 import { docToMarkdown, markdownToDoc, proseSchema } from "./markdown.js";
 
 export interface ProseEditorOptions {
@@ -35,6 +41,17 @@ export interface ProseEditorHandle {
   /** Ejecuta un comando de formato y devuelve el foco al editor. */
   exec(name: EditorCommandName, payload?: CommandPayload): void;
   getFormatState(): FormatState;
+  /**
+   * Texto plano del documento (sin sintaxis Markdown), con dos saltos entre
+   * bloques. Es la referencia de offsets para `setInlineDecorations`.
+   */
+  getPlainText(): string;
+  /**
+   * Subraya (o resalta) tramos del documento indicados en offsets del texto
+   * plano de `getPlainText`. Sustituye el juego anterior; pasa `[]` para
+   * limpiar. Las decoraciones siguen al texto mientras el usuario escribe.
+   */
+  setInlineDecorations(decorations: InlineDecoration[]): void;
   focus(): void;
   destroy(): void;
 }
@@ -68,6 +85,11 @@ export function createProseEditor(options: ProseEditorOptions): ProseEditorHandl
       view.focus();
     },
     getFormatState: () => computeFormatState(view.state),
+    getPlainText: () => getPlainText(view.state.doc),
+    setInlineDecorations: (decorations) => {
+      const meta = setDecorationsMeta(view.state.doc, decorations);
+      view.dispatch(view.state.tr.setMeta(meta.key, meta.value));
+    },
     focus: () => view.focus(),
     destroy: () => view.destroy(),
   };
@@ -92,6 +114,7 @@ function buildPlugins(): Plugin[] {
     history(),
     dropCursor(),
     gapCursor(),
+    inlineDecorationsPlugin(),
   ];
 }
 

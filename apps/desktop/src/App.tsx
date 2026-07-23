@@ -2,20 +2,27 @@ import { open, save } from "@tauri-apps/plugin-dialog";
 import { getBlueprint, listBlueprints, type BlueprintDef } from "@verne/blueprints";
 import {
   addCollectionEntry,
+  analyzeInline,
   analyzeText,
   CONTENT_DIR,
+  convertFolderToProject,
+  createFolder,
   EXPORT_DIR,
   countWords,
   createProject,
   joinPath,
   listCollection,
+  listSnapshots,
   listTrash,
+  moveEntry,
   openProject,
   readDocument,
   readDocumentMeta,
   readProjectDocuments,
   readProjectTree,
+  renameEntry,
   restoreDocument,
+  restoreSnapshot,
   searchProject,
   snapshotDocument,
   trashDocument,
@@ -30,23 +37,32 @@ import {
   type Project,
   type QualityReport,
   type SearchResult,
+  type Snapshot,
   type TrashEntry,
   type TreeNode,
+  type UpdateInfo,
 } from "@verne/core";
 import type { FormatState, ProseEditorHandle } from "@verne/editor";
-import { ProjectTree, type TreeDecoration } from "@verne/ui";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { ProjectTree, type FolderOption, type TreeDecoration } from "@verne/ui";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { DocHeader } from "./DocHeader.js";
 import { EnviosPanel } from "./EnviosPanel.js";
 import { ExportPanel } from "./ExportPanel.js";
+import { HistoryPanel } from "./HistoryPanel.js";
 import { MarkdownEditor } from "./MarkdownEditor.js";
 import { QualityPanel } from "./QualityPanel.js";
 import { ThemeToggle } from "./ThemeToggle.js";
 import { Toolbar } from "./Toolbar.js";
 import { TrashPanel } from "./TrashPanel.js";
 import { tauriFs } from "./tauri-fs.js";
+import { checkForAppUpdate, currentAppVersion, openDownloadPage } from "./update.js";
+import { UpdateBanner } from "./UpdateBanner.js";
 
 const AUTOSAVE_DELAY_MS = 800;
+/** Espera tras dejar de teclear antes de recalcular los subrayados de calidad. */
+const INLINE_HINT_DELAY_MS = 600;
+const HINTS_KEY = "verne.inline-hints";
+const UPDATE_DISMISSED_KEY = "verne.update-dismissed";
 const RECENTS_KEY = "verne.recent-projects";
 const RECENTS_MAX = 8;
 
@@ -70,6 +86,24 @@ function saveRecents(recents: RecentProject[]): void {
   localStorage.setItem(RECENTS_KEY, JSON.stringify(recents));
 }
 
+/** Los subrayados de calidad vienen encendidos; la preferencia se recuerda. */
+function loadInlineHints(): boolean {
+  return localStorage.getItem(HINTS_KEY) !== "off";
+}
+
+function saveInlineHints(on: boolean): void {
+  localStorage.setItem(HINTS_KEY, on ? "on" : "off");
+}
+
+/** Última versión que el usuario decidió posponer, para no repetir el aviso. */
+function loadDismissedUpdate(): string {
+  return localStorage.getItem(UPDATE_DISMISSED_KEY) ?? "";
+}
+
+function saveDismissedUpdate(version: string): void {
+  localStorage.setItem(UPDATE_DISMISSED_KEY, version);
+}
+
 interface OpenDoc {
   node: TreeNode;
   frontmatterRaw: string | null;
@@ -77,7 +111,7 @@ interface OpenDoc {
 }
 
 type SaveState = "saved" | "dirty" | "saving";
-type View = "doc" | "envios" | "papelera" | "exportar" | "calidad";
+type View = "doc" | "envios" | "papelera" | "exportar" | "calidad" | "historial";
 
 export function App() {
   const [project, setProject] = useState<Project | null>(null);
@@ -91,24 +125,36 @@ export function App() {
   const [searchQuery, setSearchQuery] = useState("");
   const [exportBody, setExportBody] = useState("");
   const [qualityReport, setQualityReport] = useState<QualityReport | null>(null);
+  const [history, setHistory] = useState<Snapshot[]>([]);
+  const [historySelected, setHistorySelected] = useState<Snapshot | null>(null);
+  const [historyPreview, setHistoryPreview] = useState("");
+  const [editorNonce, setEditorNonce] = useState(0);
   const [estadoFilter, setEstadoFilter] = useState<string | null>(null);
   const [error, setError] = useState<string>("");
   const [saveState, setSaveState] = useState<SaveState>("saved");
   const [words, setWords] = useState(0);
   const [focusMode, setFocusMode] = useState(false);
   const [formatState, setFormatState] = useState<FormatState | null>(null);
+  const [inlineHints, setInlineHints] = useState<boolean>(loadInlineHints);
   const [recents, setRecents] = useState<RecentProject[]>(loadRecents);
+  const [update, setUpdate] = useState<UpdateInfo | null>(null);
+  const [appVersion, setAppVersion] = useState("");
+  const [updateStatus, setUpdateStatus] = useState<"idle" | "checking" | "uptodate">("idle");
+  const [convertDir, setConvertDir] = useState<string | null>(null);
 
   const editorRef = useRef<ProseEditorHandle | null>(null);
   const docRef = useRef<OpenDoc | null>(null);
   const projectRef = useRef<Project | null>(null);
   const dirtyRef = useRef(false);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hintTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const inlineHintsRef = useRef(inlineHints);
   /** Rutas ya respaldadas en esta sesión: un snapshot por doc y sesión. */
   const snapshottedRef = useRef(new Set<string>());
 
   docRef.current = doc;
   projectRef.current = project;
+  inlineHintsRef.current = inlineHints;
 
   const blueprint: BlueprintDef | null = project ? getBlueprint(project.manifest.blueprint) : null;
 
@@ -149,12 +195,73 @@ export function App() {
     }
   }, [refreshDocMeta]);
 
+  // ── Subrayados de calidad en vivo (P16) ───────────────────────────────
+
+  /** Recalcula y aplica los subrayados sobre el documento del editor. */
+  const runInlineHints = useCallback(() => {
+    const editor = editorRef.current;
+    if (!editor) return;
+    if (!inlineHintsRef.current) {
+      editor.setInlineDecorations([]);
+      return;
+    }
+    const findings = analyzeInline(editor.getPlainText());
+    editor.setInlineDecorations(
+      findings.map((f) => ({
+        from: f.from,
+        to: f.to,
+        className: `uc uc--${f.category}`,
+        title: `${f.message}. ${f.why}`,
+      })),
+    );
+  }, []);
+
+  const scheduleInlineHints = useCallback(() => {
+    if (hintTimerRef.current) clearTimeout(hintTimerRef.current);
+    hintTimerRef.current = setTimeout(runInlineHints, INLINE_HINT_DELAY_MS);
+  }, [runInlineHints]);
+
+  // Al encender/apagar la opción: reflejarlo al instante y recordarlo.
+  useEffect(() => {
+    saveInlineHints(inlineHints);
+    runInlineHints();
+  }, [inlineHints, runInlineHints]);
+
+  // ── Aviso de nueva versión (P2: avisar, nunca descargar ni bloquear) ───
+
+  // Chequeo discreto al arrancar: solo asoma si hay algo nuevo y no lo pospuso.
+  useEffect(() => {
+    void (async () => {
+      setAppVersion(await currentAppVersion());
+      const info = await checkForAppUpdate();
+      if (info && info.latestVersion !== loadDismissedUpdate()) setUpdate(info);
+    })();
+  }, []);
+
+  async function handleCheckUpdate() {
+    setUpdateStatus("checking");
+    const info = await checkForAppUpdate();
+    if (info) {
+      setUpdate(info);
+      setUpdateStatus("idle");
+    } else {
+      setUpdate(null);
+      setUpdateStatus("uptodate");
+    }
+  }
+
+  function handleDismissUpdate() {
+    if (update) saveDismissedUpdate(update.latestVersion);
+    setUpdate(null);
+  }
+
   const handleDocChanged = useCallback(() => {
     dirtyRef.current = true;
     setSaveState("dirty");
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(() => void saveNow(), AUTOSAVE_DELAY_MS);
-  }, [saveNow]);
+    scheduleInlineHints();
+  }, [saveNow, scheduleInlineHints]);
 
   // Atajos globales y guardado al perder el foco de la ventana.
   useEffect(() => {
@@ -262,10 +369,30 @@ export function App() {
   }
 
   async function handleOpenProject() {
+    const dir = await open({ directory: true, title: "Abrir proyecto Verne" });
+    if (typeof dir !== "string") return;
     try {
-      const dir = await open({ directory: true, title: "Abrir proyecto Verne" });
-      if (typeof dir !== "string") return;
       await loadProject(await openProject(tauriFs, dir));
+    } catch (e) {
+      // Una carpeta con Markdown pero sin verne.yaml no es un error: es una
+      // invitación a adoptarla (P: función de adopción más barata que existe).
+      if (e instanceof VerneError && e.code === "NOT_A_PROJECT") {
+        setConvertDir(dir);
+        setError("");
+      } else {
+        reportError(e);
+      }
+    }
+  }
+
+  /** Convierte la carpeta elegida en proyecto Verne, adoptando su Markdown. */
+  async function handleConvertFolder(name: string, blueprintId: BlueprintId) {
+    const dir = convertDir;
+    if (!dir) return;
+    try {
+      const project = await convertFolderToProject(tauriFs, dir, { name, blueprint: blueprintId });
+      setConvertDir(null);
+      await loadProject(project);
     } catch (e) {
       reportError(e);
     }
@@ -331,6 +458,64 @@ export function App() {
       const name = path.split("/").pop()?.replace(/\.md$/, "") ?? slug;
       await refreshDocMeta(path, name);
       await handleSelect({ name, path, kind: "document" });
+    } catch (e) {
+      reportError(e);
+    }
+  }
+
+  // ── Reorganización del árbol ──────────────────────────────────────────
+
+  async function handleNewFolder(name: string) {
+    const p = projectRef.current;
+    if (!p) return;
+    try {
+      await createFolder(tauriFs, p, name);
+      setTree(await readProjectTree(tauriFs, p));
+    } catch (e) {
+      reportError(e);
+    }
+  }
+
+  /** Tras renombrar/mover, refresca el árbol y re-resuelve el doc abierto si le
+   *  cambió la ruta (a él o a una carpeta que lo contiene). */
+  async function afterTreeChange(oldPath: string, newPath: string) {
+    const p = projectRef.current;
+    if (!p) return;
+    setTree(await readProjectTree(tauriFs, p));
+    setDocsMeta(await readProjectDocuments(tauriFs, p));
+    const current = docRef.current;
+    if (!current) return;
+    const remapped = remapPath(oldPath, newPath, current.node.path);
+    if (!remapped) return;
+    if (snapshottedRef.current.has(oldPath)) {
+      snapshottedRef.current.delete(oldPath);
+      snapshottedRef.current.add(remapped);
+    }
+    const name = remapped.split("/").pop()?.replace(/\.md$/i, "") ?? current.node.name;
+    const parts = await readDocument(tauriFs, remapped);
+    setDoc({ node: { name, path: remapped, kind: "document" }, ...parts });
+    setEditorNonce((n) => n + 1);
+  }
+
+  async function handleRenameNode(node: TreeNode, newName: string) {
+    const p = projectRef.current;
+    if (!p) return;
+    try {
+      await saveNow();
+      const newPath = await renameEntry(tauriFs, p, node.path, newName);
+      await afterTreeChange(node.path, newPath);
+    } catch (e) {
+      reportError(e);
+    }
+  }
+
+  async function handleMoveNode(node: TreeNode, targetDir: string) {
+    const p = projectRef.current;
+    if (!p) return;
+    try {
+      await saveNow();
+      const newPath = await moveEntry(tauriFs, p, node.path, targetDir);
+      await afterTreeChange(node.path, newPath);
     } catch (e) {
       reportError(e);
     }
@@ -457,6 +642,56 @@ export function App() {
     }
   }
 
+  // ── Historial ─────────────────────────────────────────────────────────
+
+  async function handleOpenHistory() {
+    const current = docRef.current;
+    const p = projectRef.current;
+    if (!current || !p) return;
+    try {
+      await saveNow();
+      const snapshots = await listSnapshots(tauriFs, p, current.node.path);
+      setHistory(snapshots);
+      const first = snapshots[0] ?? null;
+      setHistorySelected(first);
+      setHistoryPreview(first ? (await readDocument(tauriFs, first.path)).body : "");
+      setView("historial");
+    } catch (e) {
+      reportError(e);
+    }
+  }
+
+  async function handleSelectSnapshot(snapshot: Snapshot) {
+    try {
+      setHistorySelected(snapshot);
+      setHistoryPreview((await readDocument(tauriFs, snapshot.path)).body);
+    } catch (e) {
+      reportError(e);
+    }
+  }
+
+  async function handleRestoreSnapshot(snapshot: Snapshot) {
+    const current = docRef.current;
+    const p = projectRef.current;
+    if (!current || !p) return;
+    try {
+      await restoreSnapshot(tauriFs, p, current.node.path, snapshot.path);
+      // El estado restaurado ya está respaldado: evita un snapshot duplicado
+      // en el próximo guardado de esta sesión.
+      snapshottedRef.current.add(current.node.path);
+      const parts = await readDocument(tauriFs, current.node.path);
+      dirtyRef.current = false;
+      setSaveState("saved");
+      setDoc({ node: current.node, frontmatterRaw: parts.frontmatterRaw, body: parts.body });
+      setWords(countWords(parts.body));
+      setEditorNonce((n) => n + 1); // fuerza el remontaje del editor con lo restaurado
+      await refreshDocMeta(current.node.path, current.node.name);
+      setView("doc");
+    } catch (e) {
+      reportError(e);
+    }
+  }
+
   async function handleSaveAuthor(author: string) {
     const p = projectRef.current;
     if (!p) return;
@@ -494,6 +729,14 @@ export function App() {
 
   // ── Render ────────────────────────────────────────────────────────────
 
+  const updateBanner = update ? (
+    <UpdateBanner
+      info={update}
+      onDownload={(url) => void openDownloadPage(url)}
+      onDismiss={handleDismissUpdate}
+    />
+  ) : null;
+
   if (!project || !blueprint) {
     return (
       <Welcome
@@ -502,6 +745,13 @@ export function App() {
         onOpen={handleOpenProject}
         onCreate={handleCreateProject}
         error={error}
+        banner={updateBanner}
+        appVersion={appVersion}
+        updateStatus={updateStatus}
+        onCheckUpdate={() => void handleCheckUpdate()}
+        convertDir={convertDir}
+        onConvert={handleConvertFolder}
+        onCancelConvert={() => setConvertDir(null)}
       />
     );
   }
@@ -519,6 +769,11 @@ export function App() {
 
   const filteredDocs =
     estadoFilter === null ? null : docsMeta.filter((m) => m.estado === estadoFilter);
+
+  const folderOptions: FolderOption[] = [
+    { path: joinPath(project.dir, CONTENT_DIR), label: "Raíz" },
+  ];
+  collectFolderOptions(tree, 0, folderOptions);
 
   return (
     <div className={`workspace${focusMode ? " workspace--focus" : ""}`}>
@@ -560,6 +815,8 @@ export function App() {
           allowEmpty={blueprint.dailyNaming ?? false}
           onCreate={handleNewDocument}
         />
+
+        <NewFolderForm onCreate={handleNewFolder} />
 
         <form
           className="search-form"
@@ -617,6 +874,9 @@ export function App() {
               selectedPath={doc?.node.path}
               onSelect={handleSelect}
               decorations={decorations}
+              folders={folderOptions}
+              onRename={(node, name) => void handleRenameNode(node, name)}
+              onMove={(node, target) => void handleMoveNode(node, target)}
             />
           )}
         </nav>
@@ -632,6 +892,7 @@ export function App() {
       </aside>
 
       <main className="main">
+        {updateBanner}
         {error && <p className="error">{error}</p>}
         {view === "envios" && blueprint.submissions ? (
           <EnviosPanel
@@ -647,6 +908,16 @@ export function App() {
           <QualityPanel
             title={currentMeta?.title ?? doc.node.name}
             report={qualityReport}
+            onClose={() => setView("doc")}
+          />
+        ) : view === "historial" && doc ? (
+          <HistoryPanel
+            title={currentMeta?.title ?? doc.node.name}
+            snapshots={history}
+            selected={historySelected}
+            previewBody={historyPreview}
+            onSelect={(s) => void handleSelectSnapshot(s)}
+            onRestore={(s) => void handleRestoreSnapshot(s)}
             onClose={() => setView("doc")}
           />
         ) : view === "exportar" && doc ? (
@@ -678,13 +949,15 @@ export function App() {
               }
               onExport={() => void handleOpenExport()}
               onQuality={() => void handleOpenQuality()}
+              onHistory={() => void handleOpenHistory()}
               onTrash={() => void handleTrash()}
             />
             <MarkdownEditor
-              key={doc.node.path}
+              key={`${doc.node.path}#${editorNonce}`}
               initialBody={doc.body}
               onReady={(handle) => {
                 editorRef.current = handle;
+                if (handle) runInlineHints();
               }}
               onDocChanged={handleDocChanged}
               onFormatStateChanged={setFormatState}
@@ -704,6 +977,17 @@ export function App() {
           <span aria-live="polite">
             {saveState === "saved" ? "Guardado" : saveState === "saving" ? "Guardando…" : "Sin guardar"}
           </span>
+          {doc && view === "doc" && (
+            <button
+              type="button"
+              className="linklike"
+              aria-pressed={inlineHints}
+              onClick={() => setInlineHints((v) => !v)}
+              title="Subraya repeticiones, frases largas y muletillas mientras escribes"
+            >
+              {inlineHints ? "Marcas: sí" : "Marcas: no"}
+            </button>
+          )}
           <ThemeToggle />
           <button
             type="button"
@@ -816,18 +1100,122 @@ function NewDocumentForm({
   );
 }
 
+function NewFolderForm({ onCreate }: { onCreate: (name: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState("");
+
+  if (!open) {
+    return (
+      <button type="button" className="new-folder-toggle linklike" onClick={() => setOpen(true)}>
+        ＋ Nueva carpeta
+      </button>
+    );
+  }
+  return (
+    <form
+      className="new-doc new-folder"
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (name.trim()) onCreate(name.trim());
+        setName("");
+        setOpen(false);
+      }}
+    >
+      <input
+        value={name}
+        autoFocus
+        onChange={(e) => setName(e.target.value)}
+        onBlur={() => {
+          if (name.trim() === "") setOpen(false);
+        }}
+        placeholder="Nombre de la carpeta…"
+        aria-label="Nombre de la carpeta"
+      />
+      <button type="submit" title="Crear carpeta">
+        +
+      </button>
+    </form>
+  );
+}
+
+function ConvertCard({
+  dir,
+  onConvert,
+  onCancel,
+}: {
+  dir: string;
+  onConvert: (name: string, blueprint: BlueprintId) => void;
+  onCancel: () => void;
+}) {
+  const folderName = dir.split(/[/\\]/).filter(Boolean).pop() ?? "Mi proyecto";
+  const [name, setName] = useState(folderName);
+  const [blueprint, setBlueprint] = useState<BlueprintId>("blog");
+
+  return (
+    <section className="card card--convert">
+      <h2>Esta carpeta aún no es un proyecto Verne</h2>
+      <p className="convert-note">
+        <code>{dir}</code> no tiene <code>verne.yaml</code>. Verne puede adoptarla: crea el
+        proyecto aquí mismo y recoge tu Markdown en <code>contenido/</code>. Tus archivos no
+        se borran ni cambian de formato — solo se ordenan.
+      </p>
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (name.trim()) onConvert(name.trim(), blueprint);
+        }}
+      >
+        <label>
+          Nombre del proyecto
+          <input value={name} onChange={(e) => setName(e.target.value)} required />
+        </label>
+        <label>
+          Tipo de proyecto
+          <select value={blueprint} onChange={(e) => setBlueprint(e.target.value as BlueprintId)}>
+            {listBlueprints().map((bp) => (
+              <option key={bp.id} value={bp.id}>
+                {bp.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <div className="convert-actions">
+          <button type="submit">Convertir en proyecto Verne</button>
+          <button type="button" className="linklike" onClick={onCancel}>
+            Cancelar
+          </button>
+        </div>
+      </form>
+    </section>
+  );
+}
+
 function Welcome({
   recents,
   onOpenRecent,
   onOpen,
   onCreate,
   error,
+  banner,
+  appVersion,
+  updateStatus,
+  onCheckUpdate,
+  convertDir,
+  onConvert,
+  onCancelConvert,
 }: {
   recents: RecentProject[];
   onOpenRecent: (recent: RecentProject) => void;
   onOpen: () => void;
   onCreate: (name: string, blueprint: BlueprintId) => void;
   error: string;
+  banner: ReactNode;
+  appVersion: string;
+  updateStatus: "idle" | "checking" | "uptodate";
+  onCheckUpdate: () => void;
+  convertDir: string | null;
+  onConvert: (name: string, blueprint: BlueprintId) => void;
+  onCancelConvert: () => void;
 }) {
   const [name, setName] = useState("");
   const [blueprint, setBlueprint] = useState<BlueprintId>("blog");
@@ -839,7 +1227,11 @@ function Welcome({
         <ThemeToggle />
       </div>
       <p className="tagline">Tus palabras, en tus archivos.</p>
+      {banner}
       {error && <p className="error">{error}</p>}
+      {convertDir && (
+        <ConvertCard dir={convertDir} onConvert={onConvert} onCancel={onCancelConvert} />
+      )}
       {recents.length > 0 && (
         <section className="card">
           <h2>Tus proyectos</h2>
@@ -897,6 +1289,18 @@ function Welcome({
           Abrir carpeta…
         </button>
       </section>
+      <footer className="welcome-footer">
+        <span>{appVersion ? `Verne v${appVersion}` : "Verne"}</span>
+        <button
+          type="button"
+          className="linklike"
+          onClick={onCheckUpdate}
+          disabled={updateStatus === "checking"}
+        >
+          {updateStatus === "checking" ? "Buscando…" : "Buscar actualizaciones"}
+        </button>
+        {updateStatus === "uptodate" && <span className="welcome-uptodate">Estás al día.</span>}
+      </footer>
     </main>
   );
 }
@@ -910,6 +1314,23 @@ function todayTitle(language: string): string {
     });
   } catch {
     return new Date().toISOString().slice(0, 10);
+  }
+}
+
+/** Reasigna la ruta de un documento abierto cuando él o una carpeta que lo
+ *  contiene se renombra o se mueve. Devuelve null si no le afecta. */
+function remapPath(oldPath: string, newPath: string, openPath: string): string | null {
+  if (openPath === oldPath) return newPath;
+  if (openPath.startsWith(`${oldPath}/`)) return newPath + openPath.slice(oldPath.length);
+  return null;
+}
+
+/** Aplana las carpetas del árbol como destinos de "mover", con sangría. */
+function collectFolderOptions(nodes: TreeNode[], depth: number, out: FolderOption[]): void {
+  for (const node of nodes) {
+    if (node.kind !== "folder") continue;
+    out.push({ path: node.path, label: `${"· ".repeat(depth + 1)}${node.name}` });
+    if (node.children) collectFolderOptions(node.children, depth + 1, out);
   }
 }
 

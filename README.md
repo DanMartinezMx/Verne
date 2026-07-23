@@ -10,22 +10,48 @@ exportación en formato de manuscrito estándar. Y tu obra son siempre **archivo
 Markdown en una carpeta normal**: si Verne desaparece mañana, tus textos siguen ahí,
 legibles con cualquier editor.
 
-## Qué hace hoy (v0.1)
+## Qué hace hoy (v0.2)
 
 - **Editor de texto rico** que guarda Markdown: barra de formato, atajos, modo
   enfoque, autosave y snapshots de seguridad locales.
-- **Dos tipos de proyecto** con experiencias distintas:
+- **Cinco tipos de proyecto**, cada uno adapta la app a lo que escribes:
   - *Blog*: estados idea → borrador → publicada; copiar HTML/Markdown limpio para
     pegar en cualquier CMS, o guardar como archivo.
   - *Cuentos*: estados hasta enviado; **registro de envíos** (a qué revista, cuándo,
     qué respondieron); exportación **DOCX en formato manuscrito estándar** (Times 12,
     doble espacio, encabezado con apellido y página, "Fin").
-- **Organización**: títulos, etiquetas, filtros por estado, búsqueda global que
-  ignora acentos, papelera reversible (borrar = mover a `papelera/`, visible en tu
-  explorador).
+  - *Diario*: entradas nombradas por fecha (orden cronológico); enviar en blanco crea
+    la entrada de hoy.
+  - *Guion* y *Podcast*: estados y estructura propios de cada formato.
+- **Calidad sin IA**, local e instantánea, que además de señalar explica: legibilidad
+  (Fernández-Huerta), repeticiones cercanas, frases largas, adverbios en -mente y
+  muletillas. En el panel "Calidad" o **subrayado en vivo mientras escribes**, con la
+  explicación al pasar el cursor.
+- **Historial visible**: cada documento guarda versiones; ábrelas, míralas y
+  **restaura** una desde el botón "Historial" (restaurar respalda antes lo actual —
+  nunca pierdes nada).
+- **Organiza tu árbol**: crea carpetas, **renombra y mueve** documentos y carpetas
+  (arrastrando su historial), además de títulos, etiquetas, filtros por estado,
+  búsqueda global que ignora acentos y papelera reversible (borrar = mover a
+  `papelera/`, visible en tu explorador).
+- **Adopta lo que ya tienes**: abre una carpeta de Markdown suelto (ex-Obsidian, notas
+  dispersas) y Verne la convierte en proyecto sin cambiar el formato de tus textos.
+- **Tema claro/oscuro** que sigue al sistema o fuerzas tú, sin parpadeos.
+- **Aviso discreto de nueva versión** (opcional; nunca descarga sola ni te bloquea).
 - **Tus datos, tuyos**: formato abierto documentado ([VPF](docs/spec/vpf/README.md));
   borrar la carpeta interna `.verne/` nunca pierde una palabra (hay un test
   permanente que lo garantiza).
+
+### Novedades
+
+- **v0.2.0** — subrayados de calidad en vivo en el editor (sobre una nueva API de
+  decoraciones reutilizable), historial visible con restaurar, gestión del árbol
+  (renombrar, carpetas, mover), adopción de carpetas Markdown existentes y aviso
+  discreto de nueva versión.
+- **v0.1.1** — panel de calidad sin IA, control de tema claro/oscuro y tres plantillas
+  nuevas (Diario, Guion, Podcast).
+
+Notas completas de cada versión en [Releases](../../releases).
 
 ## Qué NO hace todavía (a propósito)
 

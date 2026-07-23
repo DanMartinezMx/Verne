@@ -1,6 +1,6 @@
 [package]
 name = "verne-desktop"
-version = "0.1.0"
+version = "0.2.0"
 description = "Verne — un sistema operativo para escritores"
 edition = "2021"
 license = "AGPL-3.0-only"
@@ -12,3 +12,4 @@ tauri-build = { version = "2", features = [] }
 tauri = { version = "2", features = [] }
 tauri-plugin-dialog = "2"
 tauri-plugin-fs = "2"
+tauri-plugin-opener = "2"

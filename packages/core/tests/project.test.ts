@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   CONTENT_DIR,
+  convertFolderToProject,
   createProject,
   INTERNAL_DIR,
   joinPath,
@@ -54,6 +55,50 @@ describe("createProject / openProject", () => {
     expect(() => parseManifest("vpf: '99.0'\nname: X\nblueprint: blog\n")).toThrow(
       /VPF 99\.0/,
     );
+  });
+});
+
+describe("convertFolderToProject (adopción)", () => {
+  it("adopta Markdown suelto y subcarpetas dentro de contenido/", async () => {
+    // una carpeta ex-Obsidian: notas en la raíz y en subcarpetas
+    await nodeFs.writeTextFile(joinPath(dir, "bienvenida.md"), "# Hola\n");
+    await nodeFs.writeTextFile(joinPath(dir, "diario.md"), "hoy escribí\n");
+    await nodeFs.mkdir(joinPath(dir, "cuentos"));
+    await nodeFs.writeTextFile(joinPath(dir, "cuentos", "el-faro.md"), "# El faro\n");
+    await nodeFs.mkdir(joinPath(dir, "imagenes")); // sin markdown: no se adopta
+    await nodeFs.writeTextFile(joinPath(dir, "imagenes", "foto.png"), "binario");
+    await nodeFs.mkdir(joinPath(dir, ".obsidian")); // config oculta: se respeta
+    await nodeFs.writeTextFile(joinPath(dir, ".obsidian", "app.json"), "{}");
+
+    const project = await convertFolderToProject(nodeFs, dir, { name: "Mis notas", blueprint: "diario" });
+    expect(project.manifest.name).toBe("Mis notas");
+    expect(await openProject(nodeFs, dir)).toBeTruthy(); // ya es un proyecto
+
+    const tree = await readProjectTree(nodeFs, project);
+    expect(tree.map((n) => `${n.kind}:${n.name}`)).toEqual([
+      "folder:cuentos",
+      "document:bienvenida",
+      "document:diario",
+    ]);
+    expect(tree[0]?.children?.map((n) => n.name)).toEqual(["el-faro"]);
+    // lo que no era Markdown se queda donde estaba
+    expect(await nodeFs.exists(joinPath(dir, "imagenes", "foto.png"))).toBe(true);
+    expect(await nodeFs.exists(joinPath(dir, ".obsidian", "app.json"))).toBe(true);
+  });
+
+  it("no adopta dos veces ni pisa un proyecto existente", async () => {
+    await createProject(nodeFs, dir, { name: "Ya existe", blueprint: "blog" });
+    const error = await convertFolderToProject(nodeFs, dir, {
+      name: "Otra vez",
+      blueprint: "blog",
+    }).catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(VerneError);
+    expect((error as VerneError).code).toBe("ALREADY_A_PROJECT");
+  });
+
+  it("una carpeta vacía se adopta como proyecto vacío", async () => {
+    const project = await convertFolderToProject(nodeFs, dir, { name: "Vacío", blueprint: "blog" });
+    expect(await readProjectTree(nodeFs, project)).toEqual([]);
   });
 });
 

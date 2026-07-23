@@ -1,8 +1,10 @@
 export {
+  analyzeInline,
   analyzeText,
   countSyllables,
   type Finding,
   type FindingCategory,
+  type InlineFinding,
   type QualityReport,
 } from "./analyze.js";
 export {
@@ -16,12 +18,15 @@ export {
 export {
   countWords,
   joinDocument,
+  listSnapshots,
   readDocument,
+  restoreSnapshot,
   SNAPSHOT_KEEP,
   snapshotDocument,
   splitFrontmatter,
   writeDocument,
   type DocumentParts,
+  type Snapshot,
 } from "./document.js";
 export {
   readDocumentMeta,
@@ -29,12 +34,24 @@ export {
   type DocumentMeta,
 } from "./documents-index.js";
 export { VerneError, type VerneErrorCode } from "./errors.js";
+export { createFolder, moveEntry, renameEntry, sanitizeName } from "./organize.js";
 export {
   getFrontmatterFields,
   readTags,
   withFrontmatterFields,
 } from "./frontmatter.js";
 export { searchProject, type SearchResult } from "./search.js";
+export {
+  checkForUpdate,
+  compareVersions,
+  isNewerVersion,
+  latestReleaseApi,
+  parseVersion,
+  releasesPage,
+  type CheckForUpdateOptions,
+  type SemVer,
+  type UpdateInfo,
+} from "./update.js";
 export {
   listTrash,
   restoreDocument,
@@ -53,6 +70,7 @@ export {
 } from "./manifest.js";
 export {
   CONTENT_DIR,
+  convertFolderToProject,
   createProject,
   EXPORT_DIR,
   INTERNAL_DIR,
