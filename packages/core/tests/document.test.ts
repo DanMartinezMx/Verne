@@ -7,7 +7,9 @@ import {
   createProject,
   joinDocument,
   joinPath,
+  listSnapshots,
   readDocument,
+  restoreSnapshot,
   SNAPSHOT_KEEP,
   snapshotDocument,
   splitFrontmatter,
@@ -110,5 +112,47 @@ describe("documentos y snapshots", () => {
     await expect(
       snapshotDocument(nodeFs, project, joinPath(dir, "contenido", "no-existe.md")),
     ).resolves.toBeUndefined();
+  });
+
+  it("listSnapshots devuelve las versiones de la más reciente a la más antigua", async () => {
+    const path = joinPath(dir, "contenido", "entrada.md");
+    for (let i = 0; i < 3; i++) {
+      await nodeFs.writeTextFile(path, `versión número ${i} con varias palabras aquí\n`);
+      await snapshotDocument(nodeFs, project, path);
+    }
+    const snaps = await listSnapshots(nodeFs, project, path);
+    expect(snaps.length).toBe(3);
+    // la primera de la lista es la más nueva: contiene el cuerpo del último write
+    expect(await nodeFs.readTextFile(snaps[0]!.path)).toContain("versión número 2");
+    expect(await nodeFs.readTextFile(snaps[2]!.path)).toContain("versión número 0");
+    expect(snaps[0]!.words).toBeGreaterThan(0);
+    expect(snaps[0]!.takenAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+  });
+
+  it("listSnapshots sin historial devuelve lista vacía", async () => {
+    const path = joinPath(dir, "contenido", "virgen.md");
+    await nodeFs.writeTextFile(path, "sin historial todavía\n");
+    expect(await listSnapshots(nodeFs, project, path)).toEqual([]);
+  });
+
+  it("restoreSnapshot recupera una versión y respalda la actual primero", async () => {
+    const path = joinPath(dir, "contenido", "entrada.md");
+    await nodeFs.writeTextFile(path, "el párrafo original que no quiero perder\n");
+    await snapshotDocument(nodeFs, project, path);
+    // el usuario reescribe y el autosave lo persiste: el original ya solo vive
+    // en el historial
+    await nodeFs.writeTextFile(path, "borré todo por accidente\n");
+
+    const snapsBefore = await listSnapshots(nodeFs, project, path);
+    expect(snapsBefore.length).toBe(1);
+
+    await restoreSnapshot(nodeFs, project, path, snapsBefore[0]!.path);
+    // el documento vuelve a la versión restaurada…
+    expect(await nodeFs.readTextFile(path)).toBe("el párrafo original que no quiero perder\n");
+    // …y el estado accidental quedó respaldado, así que restaurar no perdió nada
+    const snapsAfter = await listSnapshots(nodeFs, project, path);
+    expect(snapsAfter.length).toBe(2);
+    const bodies = await Promise.all(snapsAfter.map((s) => nodeFs.readTextFile(s.path)));
+    expect(bodies.some((b) => b.includes("borré todo por accidente"))).toBe(true);
   });
 });

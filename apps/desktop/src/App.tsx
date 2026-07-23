@@ -10,6 +10,7 @@ import {
   createProject,
   joinPath,
   listCollection,
+  listSnapshots,
   listTrash,
   openProject,
   readDocument,
@@ -17,6 +18,7 @@ import {
   readProjectDocuments,
   readProjectTree,
   restoreDocument,
+  restoreSnapshot,
   searchProject,
   snapshotDocument,
   trashDocument,
@@ -31,6 +33,7 @@ import {
   type Project,
   type QualityReport,
   type SearchResult,
+  type Snapshot,
   type TrashEntry,
   type TreeNode,
 } from "@verne/core";
@@ -40,6 +43,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { DocHeader } from "./DocHeader.js";
 import { EnviosPanel } from "./EnviosPanel.js";
 import { ExportPanel } from "./ExportPanel.js";
+import { HistoryPanel } from "./HistoryPanel.js";
 import { MarkdownEditor } from "./MarkdownEditor.js";
 import { QualityPanel } from "./QualityPanel.js";
 import { ThemeToggle } from "./ThemeToggle.js";
@@ -90,7 +94,7 @@ interface OpenDoc {
 }
 
 type SaveState = "saved" | "dirty" | "saving";
-type View = "doc" | "envios" | "papelera" | "exportar" | "calidad";
+type View = "doc" | "envios" | "papelera" | "exportar" | "calidad" | "historial";
 
 export function App() {
   const [project, setProject] = useState<Project | null>(null);
@@ -104,6 +108,10 @@ export function App() {
   const [searchQuery, setSearchQuery] = useState("");
   const [exportBody, setExportBody] = useState("");
   const [qualityReport, setQualityReport] = useState<QualityReport | null>(null);
+  const [history, setHistory] = useState<Snapshot[]>([]);
+  const [historySelected, setHistorySelected] = useState<Snapshot | null>(null);
+  const [historyPreview, setHistoryPreview] = useState("");
+  const [editorNonce, setEditorNonce] = useState(0);
   const [estadoFilter, setEstadoFilter] = useState<string | null>(null);
   const [error, setError] = useState<string>("");
   const [saveState, setSaveState] = useState<SaveState>("saved");
@@ -507,6 +515,56 @@ export function App() {
     }
   }
 
+  // ── Historial ─────────────────────────────────────────────────────────
+
+  async function handleOpenHistory() {
+    const current = docRef.current;
+    const p = projectRef.current;
+    if (!current || !p) return;
+    try {
+      await saveNow();
+      const snapshots = await listSnapshots(tauriFs, p, current.node.path);
+      setHistory(snapshots);
+      const first = snapshots[0] ?? null;
+      setHistorySelected(first);
+      setHistoryPreview(first ? (await readDocument(tauriFs, first.path)).body : "");
+      setView("historial");
+    } catch (e) {
+      reportError(e);
+    }
+  }
+
+  async function handleSelectSnapshot(snapshot: Snapshot) {
+    try {
+      setHistorySelected(snapshot);
+      setHistoryPreview((await readDocument(tauriFs, snapshot.path)).body);
+    } catch (e) {
+      reportError(e);
+    }
+  }
+
+  async function handleRestoreSnapshot(snapshot: Snapshot) {
+    const current = docRef.current;
+    const p = projectRef.current;
+    if (!current || !p) return;
+    try {
+      await restoreSnapshot(tauriFs, p, current.node.path, snapshot.path);
+      // El estado restaurado ya está respaldado: evita un snapshot duplicado
+      // en el próximo guardado de esta sesión.
+      snapshottedRef.current.add(current.node.path);
+      const parts = await readDocument(tauriFs, current.node.path);
+      dirtyRef.current = false;
+      setSaveState("saved");
+      setDoc({ node: current.node, frontmatterRaw: parts.frontmatterRaw, body: parts.body });
+      setWords(countWords(parts.body));
+      setEditorNonce((n) => n + 1); // fuerza el remontaje del editor con lo restaurado
+      await refreshDocMeta(current.node.path, current.node.name);
+      setView("doc");
+    } catch (e) {
+      reportError(e);
+    }
+  }
+
   async function handleSaveAuthor(author: string) {
     const p = projectRef.current;
     if (!p) return;
@@ -699,6 +757,16 @@ export function App() {
             report={qualityReport}
             onClose={() => setView("doc")}
           />
+        ) : view === "historial" && doc ? (
+          <HistoryPanel
+            title={currentMeta?.title ?? doc.node.name}
+            snapshots={history}
+            selected={historySelected}
+            previewBody={historyPreview}
+            onSelect={(s) => void handleSelectSnapshot(s)}
+            onRestore={(s) => void handleRestoreSnapshot(s)}
+            onClose={() => setView("doc")}
+          />
         ) : view === "exportar" && doc ? (
           <ExportPanel
             blueprint={blueprint}
@@ -728,10 +796,11 @@ export function App() {
               }
               onExport={() => void handleOpenExport()}
               onQuality={() => void handleOpenQuality()}
+              onHistory={() => void handleOpenHistory()}
               onTrash={() => void handleTrash()}
             />
             <MarkdownEditor
-              key={doc.node.path}
+              key={`${doc.node.path}#${editorNonce}`}
               initialBody={doc.body}
               onReady={(handle) => {
                 editorRef.current = handle;

@@ -18,12 +18,15 @@ export {
 export {
   countWords,
   joinDocument,
+  listSnapshots,
   readDocument,
+  restoreSnapshot,
   SNAPSHOT_KEEP,
   snapshotDocument,
   splitFrontmatter,
   writeDocument,
   type DocumentParts,
+  type Snapshot,
 } from "./document.js";
 export {
   readDocumentMeta,
