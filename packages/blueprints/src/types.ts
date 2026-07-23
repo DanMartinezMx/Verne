@@ -28,6 +28,8 @@ export interface BlueprintDef {
   /** Estado con el que nacen los documentos nuevos. */
   initialState: string;
   starterDocument: { fileName: string; contents: string };
+  /** Los documentos nuevos se nombran con la fecha del día (diario). */
+  dailyNaming?: boolean;
   /** El Blueprint de cuentos activa el registro de envíos (colección VPF). */
   submissions?: {
     collection: string;

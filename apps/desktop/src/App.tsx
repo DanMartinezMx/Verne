@@ -1,7 +1,8 @@
 import { open, save } from "@tauri-apps/plugin-dialog";
-import { getBlueprint, type BlueprintDef } from "@verne/blueprints";
+import { getBlueprint, listBlueprints, type BlueprintDef } from "@verne/blueprints";
 import {
   addCollectionEntry,
+  analyzeText,
   CONTENT_DIR,
   EXPORT_DIR,
   countWords,
@@ -27,6 +28,7 @@ import {
   type CollectionEntry,
   type DocumentMeta,
   type Project,
+  type QualityReport,
   type SearchResult,
   type TrashEntry,
   type TreeNode,
@@ -38,6 +40,8 @@ import { DocHeader } from "./DocHeader.js";
 import { EnviosPanel } from "./EnviosPanel.js";
 import { ExportPanel } from "./ExportPanel.js";
 import { MarkdownEditor } from "./MarkdownEditor.js";
+import { QualityPanel } from "./QualityPanel.js";
+import { ThemeToggle } from "./ThemeToggle.js";
 import { Toolbar } from "./Toolbar.js";
 import { TrashPanel } from "./TrashPanel.js";
 import { tauriFs } from "./tauri-fs.js";
@@ -73,7 +77,7 @@ interface OpenDoc {
 }
 
 type SaveState = "saved" | "dirty" | "saving";
-type View = "doc" | "envios" | "papelera" | "exportar";
+type View = "doc" | "envios" | "papelera" | "exportar" | "calidad";
 
 export function App() {
   const [project, setProject] = useState<Project | null>(null);
@@ -86,6 +90,7 @@ export function App() {
   const [searchResults, setSearchResults] = useState<SearchResult[] | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [exportBody, setExportBody] = useState("");
+  const [qualityReport, setQualityReport] = useState<QualityReport | null>(null);
   const [estadoFilter, setEstadoFilter] = useState<string | null>(null);
   const [error, setError] = useState<string>("");
   const [saveState, setSaveState] = useState<SaveState>("saved");
@@ -304,12 +309,16 @@ export function App() {
     }
   }
 
-  async function handleNewDocument(title: string) {
+  async function handleNewDocument(rawTitle: string) {
     const p = projectRef.current;
     if (!p || !blueprint) return;
     try {
       await saveNow();
-      const slug = slugify(title) || "sin-titulo";
+      // En un diario, el título por defecto es la fecha de hoy y el archivo
+      // se nombra con fecha ISO para que ordene cronológicamente.
+      const isDaily = blueprint.dailyNaming && rawTitle === "";
+      const title = isDaily ? todayTitle(p.manifest.language) : rawTitle;
+      const slug = (isDaily ? new Date().toISOString().slice(0, 10) : slugify(title)) || "sin-titulo";
       let path = joinPath(p.dir, CONTENT_DIR, `${slug}.md`);
       for (let n = 2; await tauriFs.exists(path); n++) {
         path = joinPath(p.dir, CONTENT_DIR, `${slug}-${n}.md`);
@@ -420,7 +429,7 @@ export function App() {
     setView(v);
   }
 
-  // ── Exportación ───────────────────────────────────────────────────────
+  // ── Exportación y calidad ─────────────────────────────────────────────
 
   async function handleOpenExport() {
     const current = docRef.current;
@@ -430,6 +439,19 @@ export function App() {
       const parts = await readDocument(tauriFs, current.node.path);
       setExportBody(parts.body);
       setView("exportar");
+    } catch (e) {
+      reportError(e);
+    }
+  }
+
+  async function handleOpenQuality() {
+    const current = docRef.current;
+    if (!current) return;
+    try {
+      await saveNow();
+      const parts = await readDocument(tauriFs, current.node.path);
+      setQualityReport(analyzeText(parts.body));
+      setView("calidad");
     } catch (e) {
       reportError(e);
     }
@@ -530,7 +552,12 @@ export function App() {
         )}
 
         <NewDocumentForm
-          placeholder={blueprint.vocabulary.newDocumentPlaceholder}
+          placeholder={
+            blueprint.dailyNaming
+              ? todayTitle(project.manifest.language)
+              : blueprint.vocabulary.newDocumentPlaceholder
+          }
+          allowEmpty={blueprint.dailyNaming ?? false}
           onCreate={handleNewDocument}
         />
 
@@ -616,6 +643,12 @@ export function App() {
           />
         ) : view === "papelera" ? (
           <TrashPanel entries={trashEntries} onRestore={(entry) => void handleRestore(entry)} />
+        ) : view === "calidad" && doc && qualityReport ? (
+          <QualityPanel
+            title={currentMeta?.title ?? doc.node.name}
+            report={qualityReport}
+            onClose={() => setView("doc")}
+          />
         ) : view === "exportar" && doc ? (
           <ExportPanel
             blueprint={blueprint}
@@ -644,6 +677,7 @@ export function App() {
                 void updateDocMetadata({ tags: tags.length > 0 ? tags : undefined })
               }
               onExport={() => void handleOpenExport()}
+              onQuality={() => void handleOpenQuality()}
               onTrash={() => void handleTrash()}
             />
             <MarkdownEditor
@@ -670,6 +704,7 @@ export function App() {
           <span aria-live="polite">
             {saveState === "saved" ? "Guardado" : saveState === "saving" ? "Guardando…" : "Sin guardar"}
           </span>
+          <ThemeToggle />
           <button
             type="button"
             className="linklike"
@@ -749,9 +784,11 @@ function SearchResultsList({
 
 function NewDocumentForm({
   placeholder,
+  allowEmpty,
   onCreate,
 }: {
   placeholder: string;
+  allowEmpty: boolean;
   onCreate: (title: string) => void;
 }) {
   const [title, setTitle] = useState("");
@@ -760,7 +797,7 @@ function NewDocumentForm({
       className="new-doc"
       onSubmit={(e) => {
         e.preventDefault();
-        if (title.trim()) {
+        if (title.trim() || allowEmpty) {
           onCreate(title.trim());
           setTitle("");
         }
@@ -797,7 +834,10 @@ function Welcome({
 
   return (
     <main className="welcome">
-      <h1>Verne</h1>
+      <div className="welcome-top">
+        <h1>Verne</h1>
+        <ThemeToggle />
+      </div>
       <p className="tagline">Tus palabras, en tus archivos.</p>
       {error && <p className="error">{error}</p>}
       {recents.length > 0 && (
@@ -809,7 +849,7 @@ function Welcome({
                 <button type="button" className="recent" onClick={() => onOpenRecent(r)}>
                   <span className="recent-name">{r.name}</span>
                   <span className="recent-meta">
-                    <span className="badge">{r.blueprint === "blog" ? "Blog" : "Cuentos"}</span>
+                    <span className="badge">{getBlueprint(r.blueprint)?.label ?? r.blueprint}</span>
                     <span className="recent-dir">{r.dir}</span>
                   </span>
                 </button>
@@ -841,8 +881,11 @@ function Welcome({
               value={blueprint}
               onChange={(e) => setBlueprint(e.target.value as BlueprintId)}
             >
-              <option value="blog">Blog</option>
-              <option value="cuento">Cuentos</option>
+              {listBlueprints().map((bp) => (
+                <option key={bp.id} value={bp.id}>
+                  {bp.label}
+                </option>
+              ))}
             </select>
           </label>
           <button type="submit">Elegir carpeta y crear</button>
@@ -856,6 +899,18 @@ function Welcome({
       </section>
     </main>
   );
+}
+
+function todayTitle(language: string): string {
+  try {
+    return new Date().toLocaleDateString(language, {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    });
+  } catch {
+    return new Date().toISOString().slice(0, 10);
+  }
 }
 
 function slugify(text: string): string {

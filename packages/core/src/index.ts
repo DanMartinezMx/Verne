@@ -1,4 +1,11 @@
 export {
+  analyzeText,
+  countSyllables,
+  type Finding,
+  type FindingCategory,
+  type QualityReport,
+} from "./analyze.js";
+export {
   addCollectionEntry,
   COLLECTIONS_DIR,
   ensureCollection,

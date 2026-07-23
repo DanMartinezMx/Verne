@@ -61,12 +61,18 @@ export async function snapshotDocument(
     : docPath;
   const historyDir = joinPath(project.dir, INTERNAL_DIR, "history", relative);
   await fs.mkdir(historyDir);
-  // Sufijo aleatorio: dos snapshots en el mismo milisegundo no deben colisionar.
-  const stamp = `${new Date().toISOString().replace(/[:.]/g, "-")}-${Math.random()
-    .toString(36)
-    .slice(2, 6)}`;
+  // Sufijo de secuencia monotónica: varios snapshots en el mismo milisegundo
+  // no colisionan y su orden por nombre sigue siendo el orden real de escritura.
+  const stamp = `${new Date().toISOString().replace(/[:.]/g, "-")}-${nextSnapshotSeq()}`;
   await fs.writeTextFile(joinPath(historyDir, `${stamp}.md`), await fs.readTextFile(docPath));
   await pruneSnapshots(fs, historyDir);
+}
+
+let snapshotSeq = 0;
+
+function nextSnapshotSeq(): string {
+  snapshotSeq = (snapshotSeq + 1) % 46656; // base36 de 3 dígitos
+  return snapshotSeq.toString(36).padStart(3, "0");
 }
 
 async function pruneSnapshots(fs: VerneFs, historyDir: string): Promise<void> {

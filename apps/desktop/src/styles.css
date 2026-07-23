@@ -9,8 +9,9 @@
   font-family: system-ui, "Segoe UI", sans-serif;
 }
 
+/* Tema: sigue al sistema salvo que el usuario fuerce claro/oscuro (data-theme) */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --bg: #16181d;
     --fg: #e6e6e6;
     --muted: #9ca3af;
@@ -18,6 +19,15 @@
     --border: #2d3138;
     --sidebar-bg: #1c1f26;
   }
+}
+
+:root[data-theme="dark"] {
+  --bg: #16181d;
+  --fg: #e6e6e6;
+  --muted: #9ca3af;
+  --accent: #818cf8;
+  --border: #2d3138;
+  --sidebar-bg: #1c1f26;
 }
 
 * { box-sizing: border-box; }
@@ -56,6 +66,7 @@ button[type="submit"] {
   padding: 0 1rem;
 }
 .welcome h1 { margin-bottom: 0; }
+.welcome-top { display: flex; align-items: baseline; justify-content: space-between; }
 .tagline { color: var(--muted); margin-top: 0.25rem; }
 .card {
   border: 1px solid var(--border);
@@ -75,9 +86,13 @@ button[type="submit"] {
 
 /* Proyectos recientes en Inicio */
 .recents { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.35rem; }
+.recents li { min-width: 0; }
 .recent {
   display: block;
   width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
   text-align: left;
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -87,13 +102,17 @@ button[type="submit"] {
 .recent:hover { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, transparent); }
 .recent-name { display: block; font-weight: 600; margin-bottom: 0.2rem; }
 .recent-meta { display: flex; align-items: center; gap: 0.5rem; min-width: 0; }
+.recent-meta .badge { flex-shrink: 0; }
 .recent-dir {
+  flex: 1 1 auto;
+  min-width: 0; /* sin esto, el hijo flex no encoge y la ruta larga revienta la tarjeta */
   color: var(--muted);
   font-size: 0.75rem;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   direction: rtl; /* recorta por la izquierda: el final de la ruta es lo útil */
+  text-align: left;
 }
 
 /* Espacio de trabajo */
@@ -429,6 +448,43 @@ button[type="submit"] {
   background: var(--bg);
   padding: 0.35rem 0.5rem;
   font: inherit;
+}
+
+/* Panel de calidad */
+.quality { padding: 1.25rem 1.5rem; max-width: 46rem; }
+.quality-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: 0.6rem;
+  margin: 1rem 0 1.25rem;
+}
+.quality-stat {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.7rem 0.9rem;
+  display: grid;
+  gap: 0.15rem;
+}
+.quality-stat-value { font-size: 1.15rem; font-weight: 600; }
+.quality-stat-label { font-size: 0.75rem; color: var(--muted); }
+.quality-group { margin-bottom: 1.25rem; }
+.quality-group h3 { font-size: 0.95rem; margin: 0 0 0.25rem; }
+.quality-why { color: var(--muted); font-size: 0.85rem; margin: 0 0 0.6rem; }
+.quality-findings { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.5rem; }
+.quality-message { font-size: 0.9rem; }
+.quality-excerpt {
+  margin: 0.25rem 0 0;
+  padding-left: 0.75rem;
+  border-left: 3px solid var(--border);
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-style: italic;
+}
+.quality-footnote {
+  color: var(--muted);
+  font-size: 0.8rem;
+  border-top: 1px solid var(--border);
+  padding-top: 0.75rem;
 }
 
 /* Papelera */
