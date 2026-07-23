@@ -36,7 +36,7 @@ Los nombres de carpeta (`contenido`, `colecciones`, `recursos`, `export`, `papel
 |---|---|---|---|
 | `vpf` | string | sí | Versión de la spec (`"0.1"`). Compatibilidad por versión mayor |
 | `name` | string | sí | Nombre del proyecto (para humanos) |
-| `blueprint` | string | sí | Tipo de proyecto. En 0.1: `blog` \| `cuento` |
+| `blueprint` | string | sí | Tipo de proyecto. En 0.1: `blog` \| `cuento` \| `guion` \| `podcast` \| `diario` |
 | `language` | string | no (def. `es`) | Código BCP 47 del idioma principal |
 | `createdAt` | string | no | Fecha ISO 8601 de creación |
 | `author` | string | no | Nombre del autor (lo usan las exportaciones) |
@@ -60,6 +60,9 @@ Campos desconocidos se preservan y se ignoran (compatibilidad hacia delante).
 |---|---|
 | `blog` | `idea`, `borrador`, `publicada` |
 | `cuento` | `idea`, `borrador`, `revision`, `terminado`, `enviado` |
+| `guion` | `idea`, `escaleta`, `borrador`, `revision`, `terminado` |
+| `podcast` | `idea`, `guion`, `grabado`, `editado`, `publicado` |
+| `diario` | `entrada`, `destacada` |
 
 Un `estado` fuera de la lista no es un error: se muestra como "sin estado".
 

@@ -4,7 +4,7 @@ import { VerneError } from "./errors.js";
 /** Versión del formato VPF que esta versión de core escribe y entiende. */
 export const VPF_VERSION = "0.1";
 
-export const BLUEPRINT_IDS = ["blog", "cuento"] as const;
+export const BLUEPRINT_IDS = ["blog", "cuento", "guion", "podcast", "diario"] as const;
 export type BlueprintId = (typeof BLUEPRINT_IDS)[number];
 
 export interface ProjectManifest {
