@@ -5,6 +5,7 @@ import {
   analyzeInline,
   analyzeText,
   CONTENT_DIR,
+  convertFolderToProject,
   createFolder,
   EXPORT_DIR,
   countWords,
@@ -139,6 +140,7 @@ export function App() {
   const [update, setUpdate] = useState<UpdateInfo | null>(null);
   const [appVersion, setAppVersion] = useState("");
   const [updateStatus, setUpdateStatus] = useState<"idle" | "checking" | "uptodate">("idle");
+  const [convertDir, setConvertDir] = useState<string | null>(null);
 
   const editorRef = useRef<ProseEditorHandle | null>(null);
   const docRef = useRef<OpenDoc | null>(null);
@@ -367,10 +369,30 @@ export function App() {
   }
 
   async function handleOpenProject() {
+    const dir = await open({ directory: true, title: "Abrir proyecto Verne" });
+    if (typeof dir !== "string") return;
     try {
-      const dir = await open({ directory: true, title: "Abrir proyecto Verne" });
-      if (typeof dir !== "string") return;
       await loadProject(await openProject(tauriFs, dir));
+    } catch (e) {
+      // Una carpeta con Markdown pero sin verne.yaml no es un error: es una
+      // invitación a adoptarla (P: función de adopción más barata que existe).
+      if (e instanceof VerneError && e.code === "NOT_A_PROJECT") {
+        setConvertDir(dir);
+        setError("");
+      } else {
+        reportError(e);
+      }
+    }
+  }
+
+  /** Convierte la carpeta elegida en proyecto Verne, adoptando su Markdown. */
+  async function handleConvertFolder(name: string, blueprintId: BlueprintId) {
+    const dir = convertDir;
+    if (!dir) return;
+    try {
+      const project = await convertFolderToProject(tauriFs, dir, { name, blueprint: blueprintId });
+      setConvertDir(null);
+      await loadProject(project);
     } catch (e) {
       reportError(e);
     }
@@ -727,6 +749,9 @@ export function App() {
         appVersion={appVersion}
         updateStatus={updateStatus}
         onCheckUpdate={() => void handleCheckUpdate()}
+        convertDir={convertDir}
+        onConvert={handleConvertFolder}
+        onCancelConvert={() => setConvertDir(null)}
       />
     );
   }
@@ -1113,6 +1138,58 @@ function NewFolderForm({ onCreate }: { onCreate: (name: string) => void }) {
   );
 }
 
+function ConvertCard({
+  dir,
+  onConvert,
+  onCancel,
+}: {
+  dir: string;
+  onConvert: (name: string, blueprint: BlueprintId) => void;
+  onCancel: () => void;
+}) {
+  const folderName = dir.split(/[/\\]/).filter(Boolean).pop() ?? "Mi proyecto";
+  const [name, setName] = useState(folderName);
+  const [blueprint, setBlueprint] = useState<BlueprintId>("blog");
+
+  return (
+    <section className="card card--convert">
+      <h2>Esta carpeta aún no es un proyecto Verne</h2>
+      <p className="convert-note">
+        <code>{dir}</code> no tiene <code>verne.yaml</code>. Verne puede adoptarla: crea el
+        proyecto aquí mismo y recoge tu Markdown en <code>contenido/</code>. Tus archivos no
+        se borran ni cambian de formato — solo se ordenan.
+      </p>
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (name.trim()) onConvert(name.trim(), blueprint);
+        }}
+      >
+        <label>
+          Nombre del proyecto
+          <input value={name} onChange={(e) => setName(e.target.value)} required />
+        </label>
+        <label>
+          Tipo de proyecto
+          <select value={blueprint} onChange={(e) => setBlueprint(e.target.value as BlueprintId)}>
+            {listBlueprints().map((bp) => (
+              <option key={bp.id} value={bp.id}>
+                {bp.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <div className="convert-actions">
+          <button type="submit">Convertir en proyecto Verne</button>
+          <button type="button" className="linklike" onClick={onCancel}>
+            Cancelar
+          </button>
+        </div>
+      </form>
+    </section>
+  );
+}
+
 function Welcome({
   recents,
   onOpenRecent,
@@ -1123,6 +1200,9 @@ function Welcome({
   appVersion,
   updateStatus,
   onCheckUpdate,
+  convertDir,
+  onConvert,
+  onCancelConvert,
 }: {
   recents: RecentProject[];
   onOpenRecent: (recent: RecentProject) => void;
@@ -1133,6 +1213,9 @@ function Welcome({
   appVersion: string;
   updateStatus: "idle" | "checking" | "uptodate";
   onCheckUpdate: () => void;
+  convertDir: string | null;
+  onConvert: (name: string, blueprint: BlueprintId) => void;
+  onCancelConvert: () => void;
 }) {
   const [name, setName] = useState("");
   const [blueprint, setBlueprint] = useState<BlueprintId>("blog");
@@ -1146,6 +1229,9 @@ function Welcome({
       <p className="tagline">Tus palabras, en tus archivos.</p>
       {banner}
       {error && <p className="error">{error}</p>}
+      {convertDir && (
+        <ConvertCard dir={convertDir} onConvert={onConvert} onCancel={onCancelConvert} />
+      )}
       {recents.length > 0 && (
         <section className="card">
           <h2>Tus proyectos</h2>

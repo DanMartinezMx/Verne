@@ -66,6 +66,76 @@ export async function createProject(
   return { dir, manifest };
 }
 
+/**
+ * Adopta una carpeta con Markdown suelto (ex-Obsidian, notas dispersas) como
+ * proyecto Verne: crea el `verne.yaml` y la estructura VPF, y recoge el
+ * Markdown existente dentro de `contenido/` para que aparezca en la app. Es la
+ * función de adopción más barata: convierte a curiosos con historial en
+ * usuarios sin pedirles que empiecen de cero.
+ */
+export async function convertFolderToProject(
+  fs: VerneFs,
+  dir: string,
+  options: Omit<CreateProjectOptions, "starterDocument">,
+): Promise<Project> {
+  if (await fs.exists(joinPath(dir, MANIFEST_FILE))) {
+    throw new VerneError("ALREADY_A_PROJECT", `Ya existe un proyecto Verne en ${dir}`);
+  }
+  const contentDir = joinPath(dir, CONTENT_DIR);
+  for (const sub of [CONTENT_DIR, RESOURCES_DIR, EXPORT_DIR, INTERNAL_DIR]) {
+    await fs.mkdir(joinPath(dir, sub));
+  }
+  // Recoge en contenido/ el Markdown que ya vivía en la carpeta: archivos .md
+  // de la raíz y subcarpetas que contengan Markdown. Deja intacto todo lo demás
+  // (ocultos, config, imágenes sueltas) y nunca pisa lo ya adoptado.
+  for (const entry of await fs.readDir(dir)) {
+    if (entry.name.startsWith(".") || RESERVED_TOP_LEVEL.has(entry.name)) continue;
+    const source = joinPath(dir, entry.name);
+    if (entry.isDirectory) {
+      if (await containsMarkdown(fs, source)) {
+        await fs.rename(source, await freeTarget(fs, joinPath(contentDir, entry.name)));
+      }
+    } else if (entry.name.toLowerCase().endsWith(".md")) {
+      await fs.rename(source, await freeTarget(fs, joinPath(contentDir, entry.name)));
+    }
+  }
+  const manifest: ProjectManifest = {
+    vpf: VPF_VERSION,
+    name: options.name,
+    blueprint: options.blueprint,
+    language: options.language ?? "es",
+    createdAt: new Date().toISOString(),
+  };
+  await fs.writeTextFile(joinPath(dir, MANIFEST_FILE), serializeManifest(manifest));
+  return { dir, manifest };
+}
+
+/** Nombres de la raíz que nunca se adoptan (son estructura VPF, no contenido). */
+const RESERVED_TOP_LEVEL = new Set([CONTENT_DIR, RESOURCES_DIR, EXPORT_DIR, "papelera", MANIFEST_FILE]);
+
+async function containsMarkdown(fs: VerneFs, dir: string): Promise<boolean> {
+  for (const entry of await fs.readDir(dir)) {
+    if (entry.isDirectory) {
+      if (await containsMarkdown(fs, joinPath(dir, entry.name))) return true;
+    } else if (entry.name.toLowerCase().endsWith(".md")) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/** Ruta libre dentro de contenido/: si ya existe, prueba `-2`, `-3`… */
+async function freeTarget(fs: VerneFs, target: string): Promise<string> {
+  if (!(await fs.exists(target))) return target;
+  const isMd = target.toLowerCase().endsWith(".md");
+  const stem = isMd ? target.slice(0, -3) : target;
+  const ext = isMd ? ".md" : "";
+  for (let n = 2; ; n++) {
+    const candidate = `${stem}-${n}${ext}`;
+    if (!(await fs.exists(candidate))) return candidate;
+  }
+}
+
 export async function openProject(fs: VerneFs, dir: string): Promise<Project> {
   const manifestPath = joinPath(dir, MANIFEST_FILE);
   if (!(await fs.exists(manifestPath))) {

@@ -70,6 +70,7 @@ export {
 } from "./manifest.js";
 export {
   CONTENT_DIR,
+  convertFolderToProject,
   createProject,
   EXPORT_DIR,
   INTERNAL_DIR,

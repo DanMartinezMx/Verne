@@ -147,6 +147,12 @@ button[type="submit"] {
 }
 .welcome-uptodate { color: var(--accent); }
 
+/* Adopción de una carpeta existente como proyecto Verne */
+.card--convert { border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); }
+.convert-note { color: var(--muted); font-size: 0.85rem; margin: 0 0 0.75rem; }
+.convert-note code { word-break: break-all; }
+.convert-actions { display: flex; align-items: center; gap: 0.75rem; }
+
 /* Espacio de trabajo */
 .workspace {
   display: grid;
