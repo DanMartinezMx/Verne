@@ -34,6 +34,7 @@ export {
   type DocumentMeta,
 } from "./documents-index.js";
 export { VerneError, type VerneErrorCode } from "./errors.js";
+export { createFolder, moveEntry, renameEntry, sanitizeName } from "./organize.js";
 export {
   getFrontmatterFields,
   readTags,

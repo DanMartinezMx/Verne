@@ -5,6 +5,7 @@ import {
   analyzeInline,
   analyzeText,
   CONTENT_DIR,
+  createFolder,
   EXPORT_DIR,
   countWords,
   createProject,
@@ -12,11 +13,13 @@ import {
   listCollection,
   listSnapshots,
   listTrash,
+  moveEntry,
   openProject,
   readDocument,
   readDocumentMeta,
   readProjectDocuments,
   readProjectTree,
+  renameEntry,
   restoreDocument,
   restoreSnapshot,
   searchProject,
@@ -39,7 +42,7 @@ import {
   type UpdateInfo,
 } from "@verne/core";
 import type { FormatState, ProseEditorHandle } from "@verne/editor";
-import { ProjectTree, type TreeDecoration } from "@verne/ui";
+import { ProjectTree, type FolderOption, type TreeDecoration } from "@verne/ui";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { DocHeader } from "./DocHeader.js";
 import { EnviosPanel } from "./EnviosPanel.js";
@@ -438,6 +441,64 @@ export function App() {
     }
   }
 
+  // ── Reorganización del árbol ──────────────────────────────────────────
+
+  async function handleNewFolder(name: string) {
+    const p = projectRef.current;
+    if (!p) return;
+    try {
+      await createFolder(tauriFs, p, name);
+      setTree(await readProjectTree(tauriFs, p));
+    } catch (e) {
+      reportError(e);
+    }
+  }
+
+  /** Tras renombrar/mover, refresca el árbol y re-resuelve el doc abierto si le
+   *  cambió la ruta (a él o a una carpeta que lo contiene). */
+  async function afterTreeChange(oldPath: string, newPath: string) {
+    const p = projectRef.current;
+    if (!p) return;
+    setTree(await readProjectTree(tauriFs, p));
+    setDocsMeta(await readProjectDocuments(tauriFs, p));
+    const current = docRef.current;
+    if (!current) return;
+    const remapped = remapPath(oldPath, newPath, current.node.path);
+    if (!remapped) return;
+    if (snapshottedRef.current.has(oldPath)) {
+      snapshottedRef.current.delete(oldPath);
+      snapshottedRef.current.add(remapped);
+    }
+    const name = remapped.split("/").pop()?.replace(/\.md$/i, "") ?? current.node.name;
+    const parts = await readDocument(tauriFs, remapped);
+    setDoc({ node: { name, path: remapped, kind: "document" }, ...parts });
+    setEditorNonce((n) => n + 1);
+  }
+
+  async function handleRenameNode(node: TreeNode, newName: string) {
+    const p = projectRef.current;
+    if (!p) return;
+    try {
+      await saveNow();
+      const newPath = await renameEntry(tauriFs, p, node.path, newName);
+      await afterTreeChange(node.path, newPath);
+    } catch (e) {
+      reportError(e);
+    }
+  }
+
+  async function handleMoveNode(node: TreeNode, targetDir: string) {
+    const p = projectRef.current;
+    if (!p) return;
+    try {
+      await saveNow();
+      const newPath = await moveEntry(tauriFs, p, node.path, targetDir);
+      await afterTreeChange(node.path, newPath);
+    } catch (e) {
+      reportError(e);
+    }
+  }
+
   /** Cambia metadatos del doc abierto reescribiendo solo el frontmatter. */
   async function updateDocMetadata(changes: Record<string, unknown>) {
     const current = docRef.current;
@@ -684,6 +745,11 @@ export function App() {
   const filteredDocs =
     estadoFilter === null ? null : docsMeta.filter((m) => m.estado === estadoFilter);
 
+  const folderOptions: FolderOption[] = [
+    { path: joinPath(project.dir, CONTENT_DIR), label: "Raíz" },
+  ];
+  collectFolderOptions(tree, 0, folderOptions);
+
   return (
     <div className={`workspace${focusMode ? " workspace--focus" : ""}`}>
       <aside className="sidebar">
@@ -724,6 +790,8 @@ export function App() {
           allowEmpty={blueprint.dailyNaming ?? false}
           onCreate={handleNewDocument}
         />
+
+        <NewFolderForm onCreate={handleNewFolder} />
 
         <form
           className="search-form"
@@ -781,6 +849,9 @@ export function App() {
               selectedPath={doc?.node.path}
               onSelect={handleSelect}
               decorations={decorations}
+              folders={folderOptions}
+              onRename={(node, name) => void handleRenameNode(node, name)}
+              onMove={(node, target) => void handleMoveNode(node, target)}
             />
           )}
         </nav>
@@ -1004,6 +1075,44 @@ function NewDocumentForm({
   );
 }
 
+function NewFolderForm({ onCreate }: { onCreate: (name: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState("");
+
+  if (!open) {
+    return (
+      <button type="button" className="new-folder-toggle linklike" onClick={() => setOpen(true)}>
+        ＋ Nueva carpeta
+      </button>
+    );
+  }
+  return (
+    <form
+      className="new-doc new-folder"
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (name.trim()) onCreate(name.trim());
+        setName("");
+        setOpen(false);
+      }}
+    >
+      <input
+        value={name}
+        autoFocus
+        onChange={(e) => setName(e.target.value)}
+        onBlur={() => {
+          if (name.trim() === "") setOpen(false);
+        }}
+        placeholder="Nombre de la carpeta…"
+        aria-label="Nombre de la carpeta"
+      />
+      <button type="submit" title="Crear carpeta">
+        +
+      </button>
+    </form>
+  );
+}
+
 function Welcome({
   recents,
   onOpenRecent,
@@ -1119,6 +1228,23 @@ function todayTitle(language: string): string {
     });
   } catch {
     return new Date().toISOString().slice(0, 10);
+  }
+}
+
+/** Reasigna la ruta de un documento abierto cuando él o una carpeta que lo
+ *  contiene se renombra o se mueve. Devuelve null si no le afecta. */
+function remapPath(oldPath: string, newPath: string, openPath: string): string | null {
+  if (openPath === oldPath) return newPath;
+  if (openPath.startsWith(`${oldPath}/`)) return newPath + openPath.slice(oldPath.length);
+  return null;
+}
+
+/** Aplana las carpetas del árbol como destinos de "mover", con sangría. */
+function collectFolderOptions(nodes: TreeNode[], depth: number, out: FolderOption[]): void {
+  for (const node of nodes) {
+    if (node.kind !== "folder") continue;
+    out.push({ path: node.path, label: `${"· ".repeat(depth + 1)}${node.name}` });
+    if (node.children) collectFolderOptions(node.children, depth + 1, out);
   }
 }
 

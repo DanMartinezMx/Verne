@@ -56,7 +56,7 @@ export interface Snapshot {
 }
 
 /** Carpeta de historial de un documento (espeja su ruta relativa al proyecto). */
-function historyDirFor(project: Project, docPath: string): string {
+export function historyDirFor(project: Project, docPath: string): string {
   const relative = docPath.startsWith(project.dir)
     ? docPath.slice(project.dir.length).replace(/^[/\\]+/, "")
     : docPath;

@@ -2,7 +2,10 @@ export type VerneErrorCode =
   | "NOT_A_PROJECT"
   | "ALREADY_A_PROJECT"
   | "INVALID_MANIFEST"
-  | "UNSUPPORTED_VPF_VERSION";
+  | "UNSUPPORTED_VPF_VERSION"
+  | "INVALID_NAME"
+  | "OUTSIDE_CONTENT"
+  | "INVALID_MOVE";
 
 export class VerneError extends Error {
   constructor(
