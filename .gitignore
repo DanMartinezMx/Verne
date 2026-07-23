@@ -1,0 +1,9 @@
+node_modules/
+dist/
+target/
+apps/desktop/src-tauri/gen/
+*.log
+.DS_Store
+
+# Estado interno regenerable de proyectos VPF (nunca se versiona)
+**/.verne/
