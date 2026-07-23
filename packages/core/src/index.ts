@@ -1,8 +1,10 @@
 export {
+  analyzeInline,
   analyzeText,
   countSyllables,
   type Finding,
   type FindingCategory,
+  type InlineFinding,
   type QualityReport,
 } from "./analyze.js";
 export {

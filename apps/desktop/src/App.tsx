@@ -2,6 +2,7 @@ import { open, save } from "@tauri-apps/plugin-dialog";
 import { getBlueprint, listBlueprints, type BlueprintDef } from "@verne/blueprints";
 import {
   addCollectionEntry,
+  analyzeInline,
   analyzeText,
   CONTENT_DIR,
   EXPORT_DIR,
@@ -47,6 +48,9 @@ import { TrashPanel } from "./TrashPanel.js";
 import { tauriFs } from "./tauri-fs.js";
 
 const AUTOSAVE_DELAY_MS = 800;
+/** Espera tras dejar de teclear antes de recalcular los subrayados de calidad. */
+const INLINE_HINT_DELAY_MS = 600;
+const HINTS_KEY = "verne.inline-hints";
 const RECENTS_KEY = "verne.recent-projects";
 const RECENTS_MAX = 8;
 
@@ -68,6 +72,15 @@ function loadRecents(): RecentProject[] {
 
 function saveRecents(recents: RecentProject[]): void {
   localStorage.setItem(RECENTS_KEY, JSON.stringify(recents));
+}
+
+/** Los subrayados de calidad vienen encendidos; la preferencia se recuerda. */
+function loadInlineHints(): boolean {
+  return localStorage.getItem(HINTS_KEY) !== "off";
+}
+
+function saveInlineHints(on: boolean): void {
+  localStorage.setItem(HINTS_KEY, on ? "on" : "off");
 }
 
 interface OpenDoc {
@@ -97,6 +110,7 @@ export function App() {
   const [words, setWords] = useState(0);
   const [focusMode, setFocusMode] = useState(false);
   const [formatState, setFormatState] = useState<FormatState | null>(null);
+  const [inlineHints, setInlineHints] = useState<boolean>(loadInlineHints);
   const [recents, setRecents] = useState<RecentProject[]>(loadRecents);
 
   const editorRef = useRef<ProseEditorHandle | null>(null);
@@ -104,11 +118,14 @@ export function App() {
   const projectRef = useRef<Project | null>(null);
   const dirtyRef = useRef(false);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hintTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const inlineHintsRef = useRef(inlineHints);
   /** Rutas ya respaldadas en esta sesión: un snapshot por doc y sesión. */
   const snapshottedRef = useRef(new Set<string>());
 
   docRef.current = doc;
   projectRef.current = project;
+  inlineHintsRef.current = inlineHints;
 
   const blueprint: BlueprintDef | null = project ? getBlueprint(project.manifest.blueprint) : null;
 
@@ -149,12 +166,45 @@ export function App() {
     }
   }, [refreshDocMeta]);
 
+  // ── Subrayados de calidad en vivo (P16) ───────────────────────────────
+
+  /** Recalcula y aplica los subrayados sobre el documento del editor. */
+  const runInlineHints = useCallback(() => {
+    const editor = editorRef.current;
+    if (!editor) return;
+    if (!inlineHintsRef.current) {
+      editor.setInlineDecorations([]);
+      return;
+    }
+    const findings = analyzeInline(editor.getPlainText());
+    editor.setInlineDecorations(
+      findings.map((f) => ({
+        from: f.from,
+        to: f.to,
+        className: `uc uc--${f.category}`,
+        title: `${f.message}. ${f.why}`,
+      })),
+    );
+  }, []);
+
+  const scheduleInlineHints = useCallback(() => {
+    if (hintTimerRef.current) clearTimeout(hintTimerRef.current);
+    hintTimerRef.current = setTimeout(runInlineHints, INLINE_HINT_DELAY_MS);
+  }, [runInlineHints]);
+
+  // Al encender/apagar la opción: reflejarlo al instante y recordarlo.
+  useEffect(() => {
+    saveInlineHints(inlineHints);
+    runInlineHints();
+  }, [inlineHints, runInlineHints]);
+
   const handleDocChanged = useCallback(() => {
     dirtyRef.current = true;
     setSaveState("dirty");
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(() => void saveNow(), AUTOSAVE_DELAY_MS);
-  }, [saveNow]);
+    scheduleInlineHints();
+  }, [saveNow, scheduleInlineHints]);
 
   // Atajos globales y guardado al perder el foco de la ventana.
   useEffect(() => {
@@ -685,6 +735,7 @@ export function App() {
               initialBody={doc.body}
               onReady={(handle) => {
                 editorRef.current = handle;
+                if (handle) runInlineHints();
               }}
               onDocChanged={handleDocChanged}
               onFormatStateChanged={setFormatState}
@@ -704,6 +755,17 @@ export function App() {
           <span aria-live="polite">
             {saveState === "saved" ? "Guardado" : saveState === "saving" ? "Guardando…" : "Sin guardar"}
           </span>
+          {doc && view === "doc" && (
+            <button
+              type="button"
+              className="linklike"
+              aria-pressed={inlineHints}
+              onClick={() => setInlineHints((v) => !v)}
+              title="Subraya repeticiones, frases largas y muletillas mientras escribes"
+            >
+              {inlineHints ? "Marcas: sí" : "Marcas: no"}
+            </button>
+          )}
           <ThemeToggle />
           <button
             type="button"

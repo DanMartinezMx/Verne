@@ -5,6 +5,11 @@ export {
   type FormatState,
 } from "./commands.js";
 export {
+  buildDecorations,
+  getPlainText,
+  type InlineDecoration,
+} from "./decorations.js";
+export {
   createProseEditor,
   type ProseEditorHandle,
   type ProseEditorOptions,
