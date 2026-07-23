@@ -36,10 +36,11 @@ import {
   type Snapshot,
   type TrashEntry,
   type TreeNode,
+  type UpdateInfo,
 } from "@verne/core";
 import type { FormatState, ProseEditorHandle } from "@verne/editor";
 import { ProjectTree, type TreeDecoration } from "@verne/ui";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { DocHeader } from "./DocHeader.js";
 import { EnviosPanel } from "./EnviosPanel.js";
 import { ExportPanel } from "./ExportPanel.js";
@@ -50,11 +51,14 @@ import { ThemeToggle } from "./ThemeToggle.js";
 import { Toolbar } from "./Toolbar.js";
 import { TrashPanel } from "./TrashPanel.js";
 import { tauriFs } from "./tauri-fs.js";
+import { checkForAppUpdate, currentAppVersion, openDownloadPage } from "./update.js";
+import { UpdateBanner } from "./UpdateBanner.js";
 
 const AUTOSAVE_DELAY_MS = 800;
 /** Espera tras dejar de teclear antes de recalcular los subrayados de calidad. */
 const INLINE_HINT_DELAY_MS = 600;
 const HINTS_KEY = "verne.inline-hints";
+const UPDATE_DISMISSED_KEY = "verne.update-dismissed";
 const RECENTS_KEY = "verne.recent-projects";
 const RECENTS_MAX = 8;
 
@@ -85,6 +89,15 @@ function loadInlineHints(): boolean {
 
 function saveInlineHints(on: boolean): void {
   localStorage.setItem(HINTS_KEY, on ? "on" : "off");
+}
+
+/** Última versión que el usuario decidió posponer, para no repetir el aviso. */
+function loadDismissedUpdate(): string {
+  return localStorage.getItem(UPDATE_DISMISSED_KEY) ?? "";
+}
+
+function saveDismissedUpdate(version: string): void {
+  localStorage.setItem(UPDATE_DISMISSED_KEY, version);
 }
 
 interface OpenDoc {
@@ -120,6 +133,9 @@ export function App() {
   const [formatState, setFormatState] = useState<FormatState | null>(null);
   const [inlineHints, setInlineHints] = useState<boolean>(loadInlineHints);
   const [recents, setRecents] = useState<RecentProject[]>(loadRecents);
+  const [update, setUpdate] = useState<UpdateInfo | null>(null);
+  const [appVersion, setAppVersion] = useState("");
+  const [updateStatus, setUpdateStatus] = useState<"idle" | "checking" | "uptodate">("idle");
 
   const editorRef = useRef<ProseEditorHandle | null>(null);
   const docRef = useRef<OpenDoc | null>(null);
@@ -205,6 +221,34 @@ export function App() {
     saveInlineHints(inlineHints);
     runInlineHints();
   }, [inlineHints, runInlineHints]);
+
+  // ── Aviso de nueva versión (P2: avisar, nunca descargar ni bloquear) ───
+
+  // Chequeo discreto al arrancar: solo asoma si hay algo nuevo y no lo pospuso.
+  useEffect(() => {
+    void (async () => {
+      setAppVersion(await currentAppVersion());
+      const info = await checkForAppUpdate();
+      if (info && info.latestVersion !== loadDismissedUpdate()) setUpdate(info);
+    })();
+  }, []);
+
+  async function handleCheckUpdate() {
+    setUpdateStatus("checking");
+    const info = await checkForAppUpdate();
+    if (info) {
+      setUpdate(info);
+      setUpdateStatus("idle");
+    } else {
+      setUpdate(null);
+      setUpdateStatus("uptodate");
+    }
+  }
+
+  function handleDismissUpdate() {
+    if (update) saveDismissedUpdate(update.latestVersion);
+    setUpdate(null);
+  }
 
   const handleDocChanged = useCallback(() => {
     dirtyRef.current = true;
@@ -602,6 +646,14 @@ export function App() {
 
   // ── Render ────────────────────────────────────────────────────────────
 
+  const updateBanner = update ? (
+    <UpdateBanner
+      info={update}
+      onDownload={(url) => void openDownloadPage(url)}
+      onDismiss={handleDismissUpdate}
+    />
+  ) : null;
+
   if (!project || !blueprint) {
     return (
       <Welcome
@@ -610,6 +662,10 @@ export function App() {
         onOpen={handleOpenProject}
         onCreate={handleCreateProject}
         error={error}
+        banner={updateBanner}
+        appVersion={appVersion}
+        updateStatus={updateStatus}
+        onCheckUpdate={() => void handleCheckUpdate()}
       />
     );
   }
@@ -740,6 +796,7 @@ export function App() {
       </aside>
 
       <main className="main">
+        {updateBanner}
         {error && <p className="error">{error}</p>}
         {view === "envios" && blueprint.submissions ? (
           <EnviosPanel
@@ -953,12 +1010,20 @@ function Welcome({
   onOpen,
   onCreate,
   error,
+  banner,
+  appVersion,
+  updateStatus,
+  onCheckUpdate,
 }: {
   recents: RecentProject[];
   onOpenRecent: (recent: RecentProject) => void;
   onOpen: () => void;
   onCreate: (name: string, blueprint: BlueprintId) => void;
   error: string;
+  banner: ReactNode;
+  appVersion: string;
+  updateStatus: "idle" | "checking" | "uptodate";
+  onCheckUpdate: () => void;
 }) {
   const [name, setName] = useState("");
   const [blueprint, setBlueprint] = useState<BlueprintId>("blog");
@@ -970,6 +1035,7 @@ function Welcome({
         <ThemeToggle />
       </div>
       <p className="tagline">Tus palabras, en tus archivos.</p>
+      {banner}
       {error && <p className="error">{error}</p>}
       {recents.length > 0 && (
         <section className="card">
@@ -1028,6 +1094,18 @@ function Welcome({
           Abrir carpeta…
         </button>
       </section>
+      <footer className="welcome-footer">
+        <span>{appVersion ? `Verne v${appVersion}` : "Verne"}</span>
+        <button
+          type="button"
+          className="linklike"
+          onClick={onCheckUpdate}
+          disabled={updateStatus === "checking"}
+        >
+          {updateStatus === "checking" ? "Buscando…" : "Buscar actualizaciones"}
+        </button>
+        {updateStatus === "uptodate" && <span className="welcome-uptodate">Estás al día.</span>}
+      </footer>
     </main>
   );
 }

@@ -41,6 +41,17 @@ export {
 } from "./frontmatter.js";
 export { searchProject, type SearchResult } from "./search.js";
 export {
+  checkForUpdate,
+  compareVersions,
+  isNewerVersion,
+  latestReleaseApi,
+  parseVersion,
+  releasesPage,
+  type CheckForUpdateOptions,
+  type SemVer,
+  type UpdateInfo,
+} from "./update.js";
+export {
   listTrash,
   restoreDocument,
   TRASH_DIR,

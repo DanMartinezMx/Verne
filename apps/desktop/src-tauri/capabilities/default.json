@@ -1,10 +1,11 @@
 {
   "identifier": "default",
-  "description": "Diálogos nativos y archivos dentro del perfil del usuario. Regla: cada método de tauri-fs.ts necesita su permiso aquí — al añadir uno allá, añadirlo acá.",
+  "description": "Diálogos nativos, archivos dentro del perfil del usuario y abrir el enlace de descarga en el navegador del sistema (aviso de nueva versión). Regla: cada método de tauri-fs.ts necesita su permiso aquí — al añadir uno allá, añadirlo acá.",
   "windows": ["main"],
   "permissions": [
     "core:default",
     "dialog:default",
+    "opener:default",
     "fs:allow-exists",
     "fs:allow-mkdir",
     "fs:allow-read-text-file",
