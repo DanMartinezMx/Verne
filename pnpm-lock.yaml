@@ -82,6 +82,9 @@ importers:
       vitest:
         specifier: ^3.0.0
         version: 3.2.7(@types/node@25.9.5)(yaml@2.9.0)
+      yaml:
+        specifier: ^2.6.0
+        version: 2.9.0
 
   packages/core:
     dependencies:

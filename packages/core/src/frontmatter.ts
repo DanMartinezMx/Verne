@@ -51,9 +51,20 @@ export function withFrontmatterFields(
   return { frontmatterRaw: `---\n${yamlText}---\n`, body: parts.body };
 }
 
-/** Normaliza el campo `tags` a lista de strings, tolerando string suelto. */
-export function readTags(fields: Record<string, unknown>): string[] {
-  const raw = fields["tags"];
+/** Nombre del campo de etiquetas cuando el espacio no dice otro. */
+export const DEFAULT_TAGS_FIELD = "tags";
+
+/**
+ * Normaliza el campo de etiquetas a lista de strings, tolerando string suelto.
+ * El nombre del campo lo decide el espacio (`tagsField`): el blog usa
+ * `categories` porque su sitio lo exige. core no conoce los espacios, así que lo
+ * recibe como parámetro.
+ */
+export function readTags(
+  fields: Record<string, unknown>,
+  field: string = DEFAULT_TAGS_FIELD,
+): string[] {
+  const raw = fields[field];
   if (Array.isArray(raw)) return raw.map(String).filter((t) => t.trim() !== "");
   if (typeof raw === "string" && raw.trim() !== "") return [raw.trim()];
   return [];

@@ -4,6 +4,8 @@ import { useEffect, useRef } from "react";
 interface MarkdownEditorProps {
   /** Cuerpo Markdown inicial. El componente se monta con key=ruta del doc. */
   initialBody: string;
+  /** Reglas de escritura que declara el espacio (`INT. ` → escena). */
+  sceneHeadings?: boolean;
   /** Recibe el handle al montar y null al desmontar. */
   onReady: (handle: ProseEditorHandle | null) => void;
   onDocChanged: () => void;
@@ -13,6 +15,7 @@ interface MarkdownEditorProps {
 /** Puente React → @verne/editor. Sin ProseMirror aquí: solo la API pública. */
 export function MarkdownEditor({
   initialBody,
+  sceneHeadings,
   onReady,
   onDocChanged,
   onFormatStateChanged,
@@ -27,6 +30,7 @@ export function MarkdownEditor({
     const handle = createProseEditor({
       parent,
       initialMarkdown: initialBody,
+      sceneHeadings: sceneHeadings ?? false,
       onDocChanged: () => callbacksRef.current.onDocChanged(),
       onFormatStateChanged: (state) => callbacksRef.current.onFormatStateChanged(state),
     });

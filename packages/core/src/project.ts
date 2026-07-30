@@ -1,6 +1,6 @@
 import { parseDocument } from "yaml";
 import { VerneError } from "./errors.js";
-import { joinPath, type VerneFs } from "./fs.js";
+import { joinPath, sanitizeName, type VerneFs } from "./fs.js";
 import {
   parseManifest,
   serializeManifest,
@@ -36,6 +36,15 @@ export interface CreateProjectOptions {
   language?: string;
   /** Documento inicial (lo aporta el Blueprint; core no conoce plantillas). */
   starterDocument?: { fileName: string; contents: string };
+  /** Carpetas que se crean bajo `contenido/` (andamio del espacio). */
+  scaffold?: string[];
+  /**
+   * Valores iniciales de los campos de lista cerrada (categorías del blog, por
+   * ejemplo). Los sugiere el espacio; a partir de aquí son del proyecto.
+   */
+  options?: Record<string, string[]>;
+  /** Meta de palabras de la obra (novela). */
+  target?: number;
 }
 
 export async function createProject(
@@ -52,9 +61,14 @@ export async function createProject(
     blueprint: options.blueprint,
     language: options.language ?? "es",
     createdAt: new Date().toISOString(),
+    ...(options.options ? { options: options.options } : {}),
+    ...(options.target ? { target: options.target } : {}),
   };
   for (const sub of [CONTENT_DIR, RESOURCES_DIR, EXPORT_DIR, INTERNAL_DIR]) {
     await fs.mkdir(joinPath(dir, sub));
+  }
+  for (const folder of options.scaffold ?? []) {
+    await fs.mkdir(joinPath(dir, CONTENT_DIR, sanitizeName(folder)));
   }
   if (options.starterDocument) {
     await fs.writeTextFile(
@@ -105,6 +119,8 @@ export async function convertFolderToProject(
     blueprint: options.blueprint,
     language: options.language ?? "es",
     createdAt: new Date().toISOString(),
+    ...(options.options ? { options: options.options } : {}),
+    ...(options.target ? { target: options.target } : {}),
   };
   await fs.writeTextFile(joinPath(dir, MANIFEST_FILE), serializeManifest(manifest));
   return { dir, manifest };
@@ -153,13 +169,22 @@ export async function openProject(fs: VerneFs, dir: string): Promise<Project> {
 export async function updateProjectManifest(
   fs: VerneFs,
   project: Project,
-  changes: Partial<Pick<ProjectManifest, "name" | "author" | "language">>,
+  changes: Partial<Pick<ProjectManifest, "name" | "author" | "language" | "options" | "target">>,
 ): Promise<Project> {
   const path = joinPath(project.dir, MANIFEST_FILE);
   const doc = parseDocument(await fs.readTextFile(path));
   for (const [key, value] of Object.entries(changes)) {
-    if (value === undefined || value === "") doc.delete(key);
-    else doc.set(key, value);
+    const isEmptyObject =
+      typeof value === "object" && value !== null && Object.keys(value).length === 0;
+    if (value === undefined || value === "" || isEmptyObject) {
+      doc.delete(key);
+    } else if (typeof value === "object") {
+      // Los valores compuestos (el mapa de `options`) necesitan hacerse nodo
+      // para que salgan como YAML legible y no como un volcado.
+      doc.set(key, doc.createNode(value));
+    } else {
+      doc.set(key, value);
+    }
   }
   const text = doc.toString();
   await fs.writeTextFile(path, text);

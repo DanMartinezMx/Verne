@@ -1,6 +1,6 @@
 import { historyDirFor } from "./document.js";
 import { VerneError } from "./errors.js";
-import { joinPath, type VerneFs } from "./fs.js";
+import { joinPath, sanitizeName, type VerneFs } from "./fs.js";
 import { CONTENT_DIR, type Project } from "./project.js";
 
 /**
@@ -9,22 +9,6 @@ import { CONTENT_DIR, type Project } from "./project.js";
  * manifiesto ni la papelera desde aquí) y todo arrastra su historial: renombrar
  * o mover algo no pierde sus versiones guardadas.
  */
-
-/** Separadores y caracteres reservados de Windows: fuera del nombre. */
-const RESERVED_CHARS = /[\\/:*?"<>|]/g;
-/** Controles ASCII (rango 0x00–0x1F): fuera del nombre. */
-const CONTROL_CHARS = /[\x00-\x1f]/g;
-
-/** Limpia un nombre para el disco conservando espacios, guiones y acentos
- *  (VPF: los archivos los lee un humano en su explorador). */
-export function sanitizeName(raw: string): string {
-  return raw
-    .replace(RESERVED_CHARS, "")
-    .replace(CONTROL_CHARS, "")
-    .replace(/\s+/g, " ")
-    .replace(/^\.+|\.+$/g, "")
-    .trim();
-}
 
 function contentRoot(project: Project): string {
   return joinPath(project.dir, CONTENT_DIR);

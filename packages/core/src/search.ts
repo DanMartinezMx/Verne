@@ -22,6 +22,7 @@ export async function searchProject(
   fs: VerneFs,
   project: Project,
   query: string,
+  tagsField?: string,
 ): Promise<SearchResult[]> {
   const needle = fold(query.trim());
   if (needle === "") return [];
@@ -37,7 +38,8 @@ export async function searchProject(
     const title = typeof fields["title"] === "string" ? fields["title"] : node.name;
 
     let snippet: string | null = null;
-    if (fold(title).includes(needle) || readTags(fields).some((t) => fold(t).includes(needle))) {
+    const tags = readTags(fields, tagsField);
+    if (fold(title).includes(needle) || tags.some((t) => fold(t).includes(needle))) {
       snippet = firstNonEmptyLine(parts.body);
     } else {
       snippet = findMatchingLine(parts.body, needle);

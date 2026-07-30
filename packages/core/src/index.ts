@@ -16,6 +16,11 @@ export {
   type CollectionEntry,
 } from "./collections.js";
 export {
+  compileManuscript,
+  type CompiledManuscript,
+  type CompiledPart,
+} from "./compile.js";
+export {
   countWords,
   joinDocument,
   listSnapshots,
@@ -34,13 +39,22 @@ export {
   type DocumentMeta,
 } from "./documents-index.js";
 export { VerneError, type VerneErrorCode } from "./errors.js";
-export { createFolder, moveEntry, renameEntry, sanitizeName } from "./organize.js";
+export { createFolder, moveEntry, renameEntry } from "./organize.js";
 export {
+  DEFAULT_TAGS_FIELD,
   getFrontmatterFields,
   readTags,
   withFrontmatterFields,
 } from "./frontmatter.js";
 export { searchProject, type SearchResult } from "./search.js";
+export {
+  applyTemplate,
+  listTemplates,
+  seedTemplates,
+  TEMPLATES_DIR,
+  type Template,
+  type TemplateSeed,
+} from "./templates.js";
 export {
   checkForUpdate,
   compareVersions,
@@ -59,9 +73,11 @@ export {
   trashDocument,
   type TrashEntry,
 } from "./trash.js";
-export { joinPath, type FsEntry, type VerneFs } from "./fs.js";
+export { joinPath, sanitizeName, type FsEntry, type VerneFs } from "./fs.js";
+export { listSpaces, type SpaceSummary } from "./library.js";
 export {
   BLUEPRINT_IDS,
+  isKnownBlueprint,
   parseManifest,
   serializeManifest,
   VPF_VERSION,

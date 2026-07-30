@@ -13,7 +13,38 @@ export const diarioBlueprint: BlueprintDef = {
     { id: "destacada", label: "Destacada", color: "#f59e0b" },
   ],
   initialState: "entrada",
-  dailyNaming: true,
+  naming: "fecha",
+  theme: { accent: "#65a30d", accentDark: "#a3e635", editorFont: "serif" },
+  exportProfiles: ["manuscrito-docx"],
+  collections: [],
+  metaFields: [],
+  templates: [
+    {
+      id: "entrada",
+      label: "Entrada libre",
+      contents: `---
+title: "{{title}}"
+estado: entrada
+---
+
+`,
+    },
+    {
+      id: "entrada-con-preguntas",
+      label: "Entrada con preguntas",
+      contents: `---
+title: "{{title}}"
+estado: entrada
+---
+
+## Qué pasó hoy
+
+## Qué me llevo
+
+## Qué dejo aquí
+`,
+    },
+  ],
   starterDocument: {
     fileName: "bienvenida.md",
     contents: `---

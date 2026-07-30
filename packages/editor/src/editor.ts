@@ -26,10 +26,17 @@ import {
   type InlineDecoration,
 } from "./decorations.js";
 import { docToMarkdown, markdownToDoc, proseSchema } from "./markdown.js";
+import { sceneHeadingRule } from "./scene.js";
 
 export interface ProseEditorOptions {
   parent: HTMLElement;
   initialMarkdown: string;
+  /**
+   * Escribir `INT. ` o `EXT. ` al principio de una línea la convierte en
+   * encabezado de escena. Lo activan los espacios de guion; el editor no sabe
+   * qué espacios existen, solo recibe la opción.
+   */
+  sceneHeadings?: boolean;
   /** Se invoca en cada transacción que cambia el documento. */
   onDocChanged?: () => void;
   /** Se invoca en cada transacción (incluida la selección) con el estado de formato. */
@@ -64,7 +71,7 @@ export interface ProseEditorHandle {
 export function createProseEditor(options: ProseEditorOptions): ProseEditorHandle {
   const state = EditorState.create({
     doc: markdownToDoc(options.initialMarkdown),
-    plugins: buildPlugins(),
+    plugins: buildPlugins(options.sceneHeadings ?? false),
   });
 
   const view = new EditorView(options.parent, {
@@ -95,10 +102,10 @@ export function createProseEditor(options: ProseEditorOptions): ProseEditorHandl
   };
 }
 
-function buildPlugins(): Plugin[] {
+function buildPlugins(sceneHeadings: boolean): Plugin[] {
   const s = proseSchema;
   return [
-    buildInputRules(),
+    buildInputRules(sceneHeadings),
     keymap({
       "Mod-z": undo,
       "Mod-y": redo,
@@ -119,10 +126,13 @@ function buildPlugins(): Plugin[] {
 }
 
 /** Escritura fluida: los prefijos Markdown se convierten en bloques al vuelo. */
-function buildInputRules(): Plugin {
+function buildInputRules(sceneHeadings: boolean): Plugin {
   const s = proseSchema;
   return inputRules({
     rules: [
+      // Antes que la regla de `#`: `INT. ` no compite con ella, pero el orden
+      // deja claro que es una regla del formato y no una excepción.
+      ...(sceneHeadings ? [sceneHeadingRule()] : []),
       ...smartQuotes,
       textblockTypeInputRule(/^(#{1,6})\s$/, s.nodes.heading, (match) => ({
         level: match[1]?.length ?? 1,

@@ -1,0 +1,9 @@
+vpf: "0.1"
+name: El faro de Amelia
+blueprint: novela
+language: es
+createdAt: 2026-07-30T10:00:00.000Z
+author: Dan Martínez
+# Meta de palabras de la obra: es lo único que distingue una novela corta de una
+# completa (RFC-0003 §3).
+target: 35000
