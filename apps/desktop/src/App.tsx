@@ -1227,6 +1227,7 @@ export function App() {
             <MarkdownEditor
               key={`${doc.node.path}#${editorNonce}`}
               initialBody={doc.body}
+              sceneHeadings={blueprint.sceneHeadings ?? false}
               onReady={(handle) => {
                 editorRef.current = handle;
                 if (handle) runInlineHints();

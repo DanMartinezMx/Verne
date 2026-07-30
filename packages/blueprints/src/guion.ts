@@ -20,6 +20,7 @@ export const guionBlueprint: BlueprintDef = {
   // como se leen en un guion de verdad.
   theme: { accent: "#0891b2", accentDark: "#22d3ee", editorFont: "mono" },
   exportProfiles: ["manuscrito-docx"],
+  sceneHeadings: true,
   metaFields: [],
   collections: [
     {

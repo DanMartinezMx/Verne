@@ -63,7 +63,7 @@ Y una decisión sobre lo que **no** se construye:
 ### 1.1 Lo que NO cambia
 
 - **No hay sistema de plugins.** D7 de RFC-0001 sigue aplazada. Los espacios son configuración
-  tipada del monorepo; `PanelId` y `ExportProfileId` son **uniones cerradas**. No hay registro
+  tipada del monorepo y `ExportProfileId` es una **unión cerrada**. No hay registro
   dinámico, ni carga en caliente, ni sandbox. Lo que se gana es que el día que los plugins lleguen,
   la superficie que necesitarán ya estará forzada por seis espacios reales — que es literalmente el
   argumento de RFC-0002 §4.3.2.
@@ -80,27 +80,43 @@ que es lo que RFC-0001 §10.1 siempre dijo que era un Blueprint:
 
 | Campo nuevo | Qué decide |
 |---|---|
-| `panels: PanelId[]` | Qué paneles existen en la barra lateral y en el área principal |
 | `exportProfiles: ExportProfileId[]` | Qué ofrece el panel de exportación |
 | `templates: TemplateDef[]` | Qué plantillas se siembran al crear el espacio |
-| `collections: CollectionDef[]` | Qué colecciones existen y con qué columnas se muestran |
+| `collections: CollectionDef[]` | Qué colecciones existen y con qué campos |
 | `metaFields: MetaFieldDef[]` | Qué campos de frontmatter se editan en la cabecera |
 | `tagsField?: string` | De qué campo salen las etiquetas (`tags` por defecto) |
-| `theme: SpaceTheme` | Acento y fuente del editor |
+| `theme: SpaceTheme` | Acento (claro y oscuro) y fuente del editor |
+| `cmsExtension?: string` | Extensión con la que el perfil "cms" guarda el archivo |
+| `manuscript?: {…}` | El espacio es UNA obra larga: meta y formas al crear |
 | `scaffold?: string[]` | Carpetas que nacen bajo `contenido/` |
 | `naming?: "slug" \| "fecha"` | Cómo se nombra un documento nuevo |
-| `defaultTarget?: number` | Meta de palabras por defecto |
+| `sceneHeadings?: boolean` | `INT. ` al principio de línea la convierte en escena |
 
-**Y se borran dos campos:** `submissions` (era una colección con nombre propio → `collections` +
-`panels`) y `dailyNaming` (era un booleano para un caso → `naming: "fecha"`). El diff neto de la
-fase es casi plano: se cambia forma, no se añade peso.
+**Y se borran dos campos:** `submissions` (era una colección con nombre propio → `collections`) y
+`dailyNaming` (era un booleano para un caso → `naming: "fecha"`). El diff neto de la fase es casi
+plano: se cambia forma, no se añade peso.
 
-### 2.1 Por qué uniones cerradas y no un registro
+### 2.1 No hay lista de paneles: se derivan de lo que el espacio declara
 
-Un `PanelId` abierto (string libre + registro de componentes) sería el 80% de un sistema de
-plugins, con su coste y sin su beneficio: seguiría sin poder instalar nada. La unión cerrada da
-hoy lo único que hace falta — que el espacio *elija* sus paneles — y la comprueba el compilador.
-Es P7 aplicado al propio mecanismo de extensibilidad.
+El diseño inicial de este RFC incluía un `panels: PanelId[]`. **Se descartó al implementarlo**, y
+en su lugar cada herramienta aparece porque existen los datos que necesita:
+
+| Herramienta | Aparece cuando… |
+|---|---|
+| Fichas | `collections` no está vacío |
+| Manuscrito (avance y compilar) | el espacio declara `manuscript` |
+| Exportar | siempre; lo que ofrece sale de `exportProfiles` |
+| Calidad, Historial, Papelera | siempre: son universales |
+
+Dos listas que mantener sincronizadas —los paneles y los datos de cada uno— son garantía de que un
+día alguien declare `panels: ["colecciones"]` con `collections: []`, o al contrario. Derivar la
+herramienta de lo que el espacio *es* hace que ese error no exista. Y una lista `panels` en la que
+los seis espacios escriben lo mismo (calidad, historial, papelera) no configura nada: es
+ceremonia. P7 aplicado al propio mecanismo de configuración.
+
+Lo que queda cerrado por el compilador es `ExportProfileId`: un identificador abierto con registro
+de componentes sería el 80% de un sistema de plugins, con su coste y sin su beneficio —seguiría sin
+poder instalar nada.
 
 ---
 
@@ -162,25 +178,47 @@ draft: false
 ---
 ```
 
-Tres choques, y cómo se resuelven:
+El esquema no se supuso: se leyó de su repositorio (`tina/config.tsx` y
+`scripts/validate-content.mjs`, que corre en su `prebuild`). De ahí salen cuatro choques:
 
-- **`categories` en lugar de `tags`.** `readTags` fijaba la cadena `"tags"`. Gana un parámetro de
-  nombre de campo; el espacio blog declara `categories`.
+- **La extensión.** El sitio solo renderiza `.mdx` y su validador **rechaza `.md` en duro** ("never
+  rendered"). Verne escribe `.md` en el proyecto, porque eso dice VPF, así que el espacio declara
+  con qué extensión guarda el perfil "cms" (`cmsExtension`). Sin esto, el botón habría producido un
+  archivo que el sitio ignora en silencio.
+- **`categories` en lugar de `tags`, y de una lista cerrada.** `readTags` fijaba la cadena `"tags"`;
+  gana un parámetro de nombre de campo. Y una categoría que el sitio no conozca hace fallar su
+  build, así que se marca de una lista en lugar de escribirse (ver §5.1).
 - **`draft` frente a `estado`.** El sitio quiere un booleano; la app necesita tres estados para sus
   chips, filtros y colores. No se elige uno: `draft` se **deriva** de `estado`
   (`draft: estado !== "publicada"`) y se reescribe en el mismo guardado que el estado. `estado`
   permanece en el archivo, inerte para un generador de sitios.
-- **`description`, `image` y `createdAt` no eran editables.** La cabecera del documento pasa a
-  recorrer `metaFields`, así que lo son sin código específico de blog.
+- **`description`, `image`, `createdAt`, `slug`, `series`… no eran editables.** La cabecera del
+  documento pasa a recorrer `metaFields`, así que lo son sin código específico de blog.
 
-**El criterio de éxito es concreto y comprobable:** publicar una entrada es copiar el archivo al
-repositorio del sitio, y que compile sin un solo retoque a mano. Para eso el perfil de exportación
-del blog gana "Guardar .md con frontmatter" — hoy `toCleanMarkdown` tira el frontmatter, que es
-justo lo que el sitio necesita.
+**El criterio de éxito es concreto y comprobable:** publicar una entrada es copiar el archivo a
+`content/posts/` del sitio, y que compile sin un solo retoque a mano. Para eso el perfil "cms" gana
+"Guardar .mdx" — hoy `toCleanMarkdown` tira el frontmatter, que es justo lo que el sitio necesita.
+Un test refleja las reglas de su validador, así que si el espacio deja de cumplirlas se ve en CI y
+no al publicar.
 
 Este mecanismo no es un favor al blog del maintainer: es lo que permite que cualquier espacio hable
 el esquema de su destino (el `image` de un sitio, el `duration` de un feed de podcast) sin que la
 app aprenda nada sobre ese destino.
+
+### 5.1 Las listas cerradas son del proyecto, no del código
+
+La primera versión metió las doce categorías del blog del maintainer en el código del espacio. Está
+mal: son *sus* categorías, y otra persona que escriba un blog tiene otras. Pero dejar el campo como
+texto libre devuelve el problema que resolvía —una categoría mal escrita rompe el build del sitio.
+
+La separación correcta: **el espacio declara la forma, el proyecto declara los valores.** El espacio
+dice "este campo es una lista cerrada" y aporta unos valores iniciales; al crear el proyecto se
+copian a `options` de su `verne.yaml`, y desde ahí son del usuario: los añade y los quita desde la
+cabecera o editando el archivo. Lo que se conserva es que la lista sea cerrada **dentro** del
+proyecto, que es lo que hace imposible escribir un valor malo.
+
+Se rechazó una colección `colecciones/categorias/` para esto: una lista de doce cadenas no necesita
+una carpeta con una ficha por valor.
 
 ---
 
@@ -210,8 +248,10 @@ Compatible hacia atrás; un proyecto v0.1 abre sin migración.
 | `plantillas/` | Nueva carpeta del layout, reservada por la spec |
 | `blueprint` | Añadido `novela`; un valor desconocido se preserva y no es error (D15) |
 | `target` | Campo opcional del manifiesto: meta de palabras del espacio |
+| `options` | Campo opcional: valores admitidos por campo de frontmatter (§5.1) |
 | Estados | Nueva fila `novela`: `idea`, `escaleta`, `borrador`, `revision`, `terminado` |
 | Colecciones | Documentadas `personajes`, `localizaciones` y `tramas` junto a `envios` |
+| Orden | Se documenta que el orden de una obra es el de los nombres de archivo, sin campo `orden` |
 
 `.verne/` sigue siendo prescindible: plantillas, colecciones y manuscrito viven **fuera** de ella.
 El test permanente de `packages/core/tests/project.test.ts` lo sigue garantizando sin cambios.

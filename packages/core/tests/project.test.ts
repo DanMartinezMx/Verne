@@ -59,6 +59,20 @@ describe("createProject / openProject", () => {
     );
   });
 
+  // La compatibilidad es por versión mayor: 0.2 añade cosas opcionales, así que
+  // un proyecto escrito por una versión anterior debe abrirse tal cual.
+  it("abre un proyecto de VPF 0.1 sin migración", async () => {
+    await nodeFs.writeTextFile(
+      joinPath(dir, "verne.yaml"),
+      "vpf: '0.1'\nname: De antes\nblueprint: blog\n",
+    );
+    const project = await openProject(nodeFs, dir);
+    expect(project.manifest.vpf).toBe("0.1");
+    expect(project.manifest.name).toBe("De antes");
+    // Y el archivo no se reescribe a la versión nueva por abrirlo.
+    expect(await nodeFs.readTextFile(joinPath(dir, "verne.yaml"))).toContain("vpf: '0.1'");
+  });
+
   // RFC-0003 §7.1 (D15): abrir el formato no es dejar de validarlo.
   it("preserva un tipo de espacio desconocido en lugar de rechazarlo", () => {
     const manifest = parseManifest("vpf: '0.1'\nname: X\nblueprint: novela-de-2032\n");

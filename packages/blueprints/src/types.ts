@@ -156,6 +156,12 @@ export interface BlueprintDef {
   /** Cómo se nombra un documento nuevo. "fecha" da orden cronológico. */
   naming?: "slug" | "fecha";
   /**
+   * Escribir `INT. ` o `EXT. ` al principio de una línea la convierte en
+   * encabezado de escena. Es la convención del guion, no un esquema propio: el
+   * documento sigue siendo Markdown y el round-trip no cambia.
+   */
+  sceneHeadings?: boolean;
+  /**
    * El espacio es UNA obra larga repartida en documentos (una novela), no un
    * conjunto de piezas independientes (un blog). Activa el panel Manuscrito:
    * avance sobre la meta y compilación a un solo documento.
