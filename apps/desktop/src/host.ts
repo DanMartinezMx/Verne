@@ -21,6 +21,13 @@ export const isPreview = !inTauri && import.meta.env.DEV;
 
 export const hostFs: VerneFs = isPreview ? createMemoryFs() : tauriFs;
 
+/**
+ * Carpeta de escritura de la previsualización, para que el conmutador de
+ * espacios tenga algo que conmutar sin pedirla a mano. Vacía en la app real: ahí
+ * la elige el usuario.
+ */
+export const previewLibrary = isPreview ? PREVIEW_LIBRARY : "";
+
 /** Siembra los datos de demo. En la app real no hace nada. */
 export async function initHost(): Promise<void> {
   if (isPreview) await seedPreviewLibrary(hostFs);

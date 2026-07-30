@@ -74,6 +74,7 @@ export {
   type TrashEntry,
 } from "./trash.js";
 export { joinPath, sanitizeName, type FsEntry, type VerneFs } from "./fs.js";
+export { listSpaces, type SpaceSummary } from "./library.js";
 export {
   BLUEPRINT_IDS,
   isKnownBlueprint,

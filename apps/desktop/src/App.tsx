@@ -22,6 +22,7 @@ import {
   joinPath,
   listCollection,
   listSnapshots,
+  listSpaces,
   listTrash,
   moveEntry,
   openProject,
@@ -51,6 +52,7 @@ import {
   type QualityReport,
   type SearchResult,
   type Snapshot,
+  type SpaceSummary,
   type Template,
   type TrashEntry,
   type TreeNode,
@@ -76,7 +78,7 @@ import { QualityPanel } from "./QualityPanel.js";
 import { ThemeToggle } from "./ThemeToggle.js";
 import { Toolbar } from "./Toolbar.js";
 import { TrashPanel } from "./TrashPanel.js";
-import { hostFs, initHost, isPreview, pickDirectory, saveExportFile } from "./host.js";
+import { hostFs, initHost, pickDirectory, previewLibrary, saveExportFile } from "./host.js";
 import { checkForAppUpdate, currentAppVersion, openDownloadPage } from "./update.js";
 import { UpdateBanner } from "./UpdateBanner.js";
 
@@ -87,6 +89,11 @@ const HINTS_KEY = "verne.inline-hints";
 const UPDATE_DISMISSED_KEY = "verne.update-dismissed";
 const RECENTS_KEY = "verne.recent-projects";
 const RECENTS_MAX = 8;
+/**
+ * Carpeta biblioteca. Es preferencia de la app, no formato: los espacios se
+ * descubren escaneando `verne.yaml` un nivel abajo (RFC-0003 §6).
+ */
+const LIBRARY_KEY = "verne.library";
 
 interface RecentProject {
   dir: string;
@@ -107,6 +114,15 @@ function loadRecents(): RecentProject[] {
 
 function saveRecents(recents: RecentProject[]): void {
   localStorage.setItem(RECENTS_KEY, JSON.stringify(recents));
+}
+
+function loadLibrary(): string {
+  return localStorage.getItem(LIBRARY_KEY) ?? "";
+}
+
+function saveLibrary(dir: string): void {
+  if (dir === "") localStorage.removeItem(LIBRARY_KEY);
+  else localStorage.setItem(LIBRARY_KEY, dir);
 }
 
 /** Los subrayados de calidad vienen encendidos; la preferencia se recuerda. */
@@ -169,6 +185,9 @@ export function App() {
   const [formatState, setFormatState] = useState<FormatState | null>(null);
   const [inlineHints, setInlineHints] = useState<boolean>(loadInlineHints);
   const [recents, setRecents] = useState<RecentProject[]>(loadRecents);
+  const [library, setLibrary] = useState<string>(loadLibrary);
+  /** Espacios de la biblioteca, para el conmutador de la barra lateral. */
+  const [spaces, setSpaces] = useState<SpaceSummary[]>([]);
   const [update, setUpdate] = useState<UpdateInfo | null>(null);
   const [appVersion, setAppVersion] = useState("");
   const [updateStatus, setUpdateStatus] = useState<"idle" | "checking" | "uptodate">("idle");
@@ -355,6 +374,19 @@ export function App() {
     await refreshProjectData(p);
   }
 
+  /** Relee los espacios de la biblioteca (si hay una elegida). */
+  const refreshSpaces = useCallback(async (dir: string) => {
+    setSpaces(dir === "" ? [] : await listSpaces(hostFs, dir));
+  }, []);
+
+  async function handleChooseLibrary() {
+    const dir = await pickDirectory("Elige tu carpeta de escritura");
+    if (dir === null) return;
+    saveLibrary(dir);
+    setLibrary(dir);
+    await refreshSpaces(dir);
+  }
+
   function rememberRecent(p: Project) {
     const entry: RecentProject = {
       dir: p.dir,
@@ -373,6 +405,12 @@ export function App() {
   useEffect(() => {
     void (async () => {
       await initHost();
+      // En previsualización, la biblioteca de demo viene puesta.
+      const savedLibrary = loadLibrary() || previewLibrary;
+      if (savedLibrary !== "") {
+        setLibrary(savedLibrary);
+        await refreshSpaces(savedLibrary);
+      }
       const last = loadRecents()[0];
       if (!last) return;
       try {
@@ -394,6 +432,17 @@ export function App() {
         return next;
       });
       reportError(e);
+    }
+  }
+
+  /** Salta a otro espacio de la biblioteca sin pasar por Inicio. */
+  async function handleSwitchSpace(dir: string) {
+    if (dir === projectRef.current?.dir) return;
+    try {
+      await loadProject(await openProject(hostFs, dir));
+    } catch (e) {
+      reportError(e);
+      await refreshSpaces(library);
     }
   }
 
@@ -443,7 +492,12 @@ export function App() {
 
   async function handleCreateProject(name: string, blueprintId: BlueprintId, shapeId?: string) {
     try {
-      const dir = await pickDirectory("Elige una carpeta (vacía) para el espacio");
+      // Con biblioteca, un espacio nuevo es una subcarpeta suya y no hay que
+      // elegir carpeta. Sin biblioteca, se sigue preguntando.
+      const dir =
+        library !== ""
+          ? await freeSpaceDir(library, name)
+          : await pickDirectory("Elige una carpeta (vacía) para el espacio");
       if (dir === null) return;
       const bp = getBlueprint(blueprintId);
       const options = seedOptions(bp);
@@ -461,9 +515,20 @@ export function App() {
       });
       await ensureSpaceCollections(project, bp);
       await loadProject(project);
+      await refreshSpaces(library);
     } catch (e) {
       reportError(e);
     }
+  }
+
+  /** Ruta libre para un espacio nuevo dentro de la biblioteca. */
+  async function freeSpaceDir(libraryDir: string, name: string): Promise<string> {
+    const slug = slugify(name) || "espacio";
+    let dir = joinPath(libraryDir, slug);
+    for (let n = 2; await hostFs.exists(dir); n++) {
+      dir = joinPath(libraryDir, `${slug}-${n}`);
+    }
+    return dir;
   }
 
   /**
@@ -884,6 +949,10 @@ export function App() {
     return (
       <Welcome
         recents={recents}
+        library={library}
+        spaces={spaces}
+        onChooseLibrary={() => void handleChooseLibrary()}
+        onOpenSpace={(dir) => void handleSwitchSpace(dir)}
         onOpenRecent={(r) => void handleOpenRecent(r)}
         onOpen={handleOpenProject}
         onCreate={handleCreateProject}
@@ -944,8 +1013,13 @@ export function App() {
     >
       <aside className="sidebar">
         <header className="sidebar-header">
-          <h1 className="project-name">{project.manifest.name}</h1>
-          <span className="badge">{blueprint.label}</span>
+          <SpaceSwitcher
+            current={project}
+            currentLabel={blueprint.label}
+            spaces={spaces}
+            onSwitch={(dir) => void handleSwitchSpace(dir)}
+            onGoHome={() => void handleGoHome()}
+          />
         </header>
 
         {!isKnownBlueprint(project.manifest.blueprint) && (
@@ -1070,9 +1144,6 @@ export function App() {
         <footer className="sidebar-footer">
           <button type="button" className="linklike" onClick={() => void switchView("papelera")}>
             Papelera ({trashEntries.length})
-          </button>
-          <button type="button" onClick={() => void handleGoHome()}>
-            ⌂ Cambiar de proyecto
           </button>
         </footer>
       </aside>
@@ -1200,6 +1271,86 @@ export function App() {
           </button>
         </span>
       </footer>
+    </div>
+  );
+}
+
+/**
+ * Conmutador de espacios (RFC-0003 §6): el espacio activo y los demás de la
+ * biblioteca, para saltar entre ellos sin volver a Inicio. Sin biblioteca
+ * elegida solo muestra el nombre y el botón de cambiar de proyecto.
+ */
+function SpaceSwitcher({
+  current,
+  currentLabel,
+  spaces,
+  onSwitch,
+  onGoHome,
+}: {
+  current: Project;
+  currentLabel: string;
+  spaces: SpaceSummary[];
+  onSwitch: (dir: string) => void;
+  onGoHome: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const others = spaces.filter((s) => s.dir !== current.dir);
+
+  return (
+    <div className="space-switcher">
+      <button
+        type="button"
+        className="space-current"
+        aria-expanded={open}
+        aria-haspopup="menu"
+        onClick={() => setOpen((v) => !v)}
+        title={current.dir}
+      >
+        <span className="project-name">{current.manifest.name}</span>
+        <span className="badge">{currentLabel}</span>
+        <span className="space-caret" aria-hidden="true">
+          {open ? "▴" : "▾"}
+        </span>
+      </button>
+
+      {open && (
+        <ul className="space-list" role="menu">
+          {others.map((space) => (
+            <li key={space.dir} role="none">
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setOpen(false);
+                  onSwitch(space.dir);
+                }}
+                title={space.dir}
+              >
+                <span className="space-list-name">{space.manifest.name}</span>
+                <span className="badge">{getBlueprint(space.manifest.blueprint).label}</span>
+              </button>
+            </li>
+          ))}
+          {others.length === 0 && (
+            <li className="space-list-empty" role="none">
+              No hay otros espacios en tu carpeta de escritura.
+            </li>
+          )}
+          <li role="none">
+            <button
+              type="button"
+              role="menuitem"
+              className="space-list-home"
+              onClick={() => {
+                setOpen(false);
+                onGoHome();
+              }}
+            >
+              ⌂ Inicio (crear o abrir otro)
+            </button>
+          </li>
+        </ul>
+      )}
     </div>
   );
 }
@@ -1416,6 +1567,10 @@ function ConvertCard({
 
 function Welcome({
   recents,
+  library,
+  spaces,
+  onChooseLibrary,
+  onOpenSpace,
   onOpenRecent,
   onOpen,
   onCreate,
@@ -1429,6 +1584,10 @@ function Welcome({
   onCancelConvert,
 }: {
   recents: RecentProject[];
+  library: string;
+  spaces: SpaceSummary[];
+  onChooseLibrary: () => void;
+  onOpenSpace: (dir: string) => void;
   onOpenRecent: (recent: RecentProject) => void;
   onOpen: () => void;
   onCreate: (name: string, blueprint: BlueprintId, shapeId?: string) => void;
@@ -1458,21 +1617,71 @@ function Welcome({
       {convertDir && (
         <ConvertCard dir={convertDir} onConvert={onConvert} onCancel={onCancelConvert} />
       )}
-      {recents.length > 0 && (
+      <section className="card">
+        <div className="library-header">
+          <h2>Tu carpeta de escritura</h2>
+          <button type="button" className="linklike" onClick={onChooseLibrary}>
+            {library === "" ? "Elegir…" : "Cambiar…"}
+          </button>
+        </div>
+        {library === "" ? (
+          <p className="export-note">
+            Elige una carpeta y Verne mostrará como espacios los proyectos que haya dentro. Sigue
+            siendo una carpeta normal en tu equipo: Verne no mueve nada ni añade ningún archivo
+            para gestionarla.
+          </p>
+        ) : (
+          <>
+            <p className="library-path">
+              <code>{library}</code>
+            </p>
+            {spaces.length === 0 ? (
+              <p className="export-note">
+                Todavía no hay espacios aquí. Crea el primero abajo.
+              </p>
+            ) : (
+              <ul className="recents">
+                {spaces.map((space) => (
+                  <li key={space.dir}>
+                    <button
+                      type="button"
+                      className="recent"
+                      onClick={() => onOpenSpace(space.dir)}
+                    >
+                      <span className="recent-name">{space.manifest.name}</span>
+                      <span className="recent-meta">
+                        <span className="badge">
+                          {getBlueprint(space.manifest.blueprint).label}
+                        </span>
+                        <span className="recent-dir">{space.folder}</span>
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </>
+        )}
+      </section>
+      {/* Los recientes se quedan: un espacio puede vivir fuera de la biblioteca
+          (la carpeta de siempre de alguien, o una adoptada de Markdown suelto). */}
+      {recents.filter((r) => !spaces.some((s) => s.dir === r.dir)).length > 0 && (
         <section className="card">
-          <h2>Tus proyectos</h2>
+          <h2>Fuera de tu carpeta de escritura</h2>
           <ul className="recents">
-            {recents.map((r) => (
-              <li key={r.dir}>
-                <button type="button" className="recent" onClick={() => onOpenRecent(r)}>
-                  <span className="recent-name">{r.name}</span>
-                  <span className="recent-meta">
-                    <span className="badge">{getBlueprint(r.blueprint).label}</span>
-                    <span className="recent-dir">{r.dir}</span>
-                  </span>
-                </button>
-              </li>
-            ))}
+            {recents
+              .filter((r) => !spaces.some((s) => s.dir === r.dir))
+              .map((r) => (
+                <li key={r.dir}>
+                  <button type="button" className="recent" onClick={() => onOpenRecent(r)}>
+                    <span className="recent-name">{r.name}</span>
+                    <span className="recent-meta">
+                      <span className="badge">{getBlueprint(r.blueprint).label}</span>
+                      <span className="recent-dir">{r.dir}</span>
+                    </span>
+                  </button>
+                </li>
+              ))}
           </ul>
         </section>
       )}
@@ -1523,7 +1732,9 @@ function Welcome({
               </select>
             </label>
           )}
-          <button type="submit">Elegir carpeta y crear</button>
+          <button type="submit">
+            {library === "" ? "Elegir carpeta y crear" : "Crear en mi carpeta de escritura"}
+          </button>
         </form>
       </section>
       <section className="card">
