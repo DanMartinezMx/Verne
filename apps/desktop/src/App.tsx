@@ -412,7 +412,15 @@ export function App() {
         setLibrary(savedLibrary);
         await refreshSpaces(savedLibrary);
       }
-      const last = loadRecents()[0];
+      // Un reciente cuya carpeta ya no está solo sirve para dar un error al
+      // pulsarlo: se poda al arrancar.
+      const alive: RecentProject[] = [];
+      for (const recent of loadRecents()) {
+        if (await hostFs.exists(joinPath(recent.dir, "verne.yaml"))) alive.push(recent);
+      }
+      saveRecents(alive);
+      setRecents(alive);
+      const last = alive[0];
       if (!last) return;
       try {
         await loadProject(await openProject(hostFs, last.dir));
@@ -1278,6 +1286,18 @@ export function App() {
 }
 
 /**
+ * Cuadrado con la inicial del espacio. Da un punto de anclaje visual para
+ * reconocerlo de un vistazo sin pedirle al usuario que elija un icono.
+ */
+function SpaceAvatar({ name }: { name: string }) {
+  return (
+    <span className="space-avatar" aria-hidden="true">
+      {[...name.trim()][0]?.toUpperCase() ?? "·"}
+    </span>
+  );
+}
+
+/**
  * Agrupa espacios por su carpeta en la biblioteca, manteniendo el orden que ya
  * trae `listSpaces` (raíz primero). Es lo que hace que varias novelas en
  * `novelas/` se vean juntas sin que Verne imponga ninguna estructura.
@@ -1323,8 +1343,11 @@ function SpaceSwitcher({
         onClick={() => setOpen((v) => !v)}
         title={current.dir}
       >
-        <span className="project-name">{current.manifest.name}</span>
-        <span className="badge">{currentLabel}</span>
+        <SpaceAvatar name={current.manifest.name} />
+        <span className="space-current-text">
+          <span className="project-name">{current.manifest.name}</span>
+          <span className="space-current-type">{currentLabel}</span>
+        </span>
         <span className="space-caret" aria-hidden="true">
           {open ? "▴" : "▾"}
         </span>
@@ -1350,6 +1373,7 @@ function SpaceSwitcher({
                     }}
                     title={space.dir}
                   >
+                    <SpaceAvatar name={space.manifest.name} />
                     <span className="space-list-name">{space.manifest.name}</span>
                     <span className="badge">{getBlueprint(space.manifest.blueprint).label}</span>
                   </button>
@@ -1643,6 +1667,7 @@ function Welcome({
       {convertDir && (
         <ConvertCard dir={convertDir} onConvert={onConvert} onCancel={onCancelConvert} />
       )}
+      <div className="welcome-cards">
       <section className="card">
         <div className="library-header">
           <h2>Tu carpeta de escritura</h2>
@@ -1769,11 +1794,16 @@ function Welcome({
         </form>
       </section>
       <section className="card">
-        <h2>Abrir un proyecto existente</h2>
+        <h2>Abrir una carpeta</h2>
+        <p className="export-note">
+          Un espacio que viva fuera de tu carpeta de escritura, o una carpeta con Markdown suelto
+          que quieras adoptar.
+        </p>
         <button type="button" onClick={onOpen}>
           Abrir carpeta…
         </button>
       </section>
+      </div>
       <footer className="welcome-footer">
         <span>{appVersion ? `Verne v${appVersion}` : "Verne"}</span>
         <button

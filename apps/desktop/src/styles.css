@@ -104,8 +104,11 @@ body {
 button, input, select, textarea { font: inherit; color: inherit; }
 
 /* Foco visible en todo lo enfocable. Es accesibilidad, no adorno: sin esto no
-   se puede usar la app con teclado. */
+   se puede usar la app con teclado.
+   El editor queda fuera: ahí el foco lo indica el cursor, y un recuadro
+   alrededor del texto es justo lo contrario de escribir sin distracciones. */
 :focus-visible { outline: none; box-shadow: var(--ring); border-radius: var(--r-sm); }
+.ProseMirror:focus-visible, .editor-surface:focus-visible { box-shadow: none; }
 
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; animation: none !important; }
@@ -191,13 +194,23 @@ button[type="submit"]:hover:not(:disabled), .update-download:hover {
 
 /* ═══ Pantalla de bienvenida ═══════════════════════════════════════════════ */
 .welcome {
-  max-width: 34rem;
-  margin: 7vh auto 4rem;
-  padding: 0 var(--s4);
+  max-width: 58rem;
+  margin: 6vh auto 4rem;
+  padding: 0 var(--s5);
 }
 .welcome-top { display: flex; align-items: baseline; justify-content: space-between; }
-.welcome h1 { margin: 0; font-size: 1.6rem; letter-spacing: -0.01em; }
+.welcome h1 { margin: 0; font-size: 1.7rem; letter-spacing: -0.02em; }
 .tagline { color: var(--muted); margin: var(--s1) 0 var(--s5); font-size: var(--t-base); }
+
+/* Dos columnas para que Inicio no sea una tira larga. Multicolumna en lugar de
+   grid: las tarjetas fluyen según su altura real y no dejan huecos esperando a
+   la más alta de su fila. */
+.welcome-cards { columns: 2; column-gap: var(--s3); }
+.welcome-cards > .card { break-inside: avoid; margin-top: 0; margin-bottom: var(--s3); }
+@media (max-width: 900px) {
+  .welcome { max-width: 34rem; }
+  .welcome-cards { columns: 1; }
+}
 
 .card {
   border: 1px solid var(--border);
@@ -332,15 +345,28 @@ button[type="submit"]:hover:not(:disabled), .update-download:hover {
   display: flex;
   flex-direction: column;
   overflow-y: auto;
-  padding: var(--s2);
+  padding: var(--s2) var(--s2) 0;
 }
 .sidebar nav { flex: 1; }
-.sidebar-header { margin-bottom: var(--s2); }
+/* Cabecera pegada arriba con separador propio, como el encabezado de espacio de
+   Confluence: se mantiene visible al recorrer un árbol largo. */
+.sidebar-header {
+  position: sticky;
+  top: 0;
+  z-index: 15;
+  margin: 0 calc(-1 * var(--s2)) var(--s2);
+  padding: 0 var(--s2) var(--s2);
+  background: var(--sidebar-bg);
+  border-bottom: 1px solid var(--border);
+}
 .sidebar-content { flex: 1; overflow-y: auto; }
 .sidebar-footer {
-  margin-top: var(--s2);
-  padding-top: var(--s2);
+  position: sticky;
+  bottom: 0;
+  margin: var(--s2) calc(-1 * var(--s2)) 0;
+  padding: var(--s2);
   border-top: 1px solid var(--border);
+  background: var(--sidebar-bg);
   display: flex;
   gap: var(--s2);
   align-items: center;
@@ -357,25 +383,45 @@ button[type="submit"]:hover:not(:disabled), .update-download:hover {
   border: 1px solid transparent;
   background: transparent;
   box-shadow: none;
-  padding: 0.4rem 0.5rem;
+  padding: var(--s2) var(--s1);
   border-radius: var(--r-md);
   text-align: left;
 }
-.space-current:hover { border-color: var(--border); background: var(--surface); }
+.space-current:hover { background: color-mix(in srgb, var(--fg) 6%, transparent); }
+.space-current-text { flex: 1; min-width: 0; display: grid; }
 .project-name {
-  font-size: var(--t-lg);
+  font-size: var(--t-md);
   margin: 0;
   font-weight: 650;
-  letter-spacing: -0.01em;
-}
-.space-current .project-name {
-  flex: 1;
-  min-width: 0;
+  letter-spacing: -0.005em;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.space-caret { color: var(--faint); font-size: 0.65rem; }
+.space-current-type {
+  font-size: var(--t-xs);
+  color: var(--faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.space-caret { color: var(--faint); font-size: 0.6rem; flex-shrink: 0; }
+
+/* Cuadrado con la inicial: el ancla visual del espacio, teñido con su acento. */
+.space-avatar {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: var(--r-sm);
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  color: color-mix(in srgb, var(--accent) 85%, var(--fg));
+  font-size: var(--t-sm);
+  font-weight: 700;
+  line-height: 1;
+}
+.space-list .space-avatar { width: 1.4rem; height: 1.4rem; font-size: var(--t-xs); }
 .space-list {
   position: absolute;
   z-index: 20;
@@ -429,7 +475,6 @@ button[type="submit"]:hover:not(:disabled), .update-download:hover {
   border-radius: var(--r-md);
 }
 .tab {
-  flex: 1;
   border: none;
   background: transparent;
   box-shadow: none;
@@ -438,6 +483,10 @@ button[type="submit"]:hover:not(:disabled), .update-download:hover {
   font-size: var(--t-sm);
   color: var(--muted);
 }
+/* En la barra lateral es un control segmentado (reparte el ancho); en un panel,
+   pestañas del ancho de su texto. */
+.view-tabs .tab { flex: 1; }
+.collection-tabs .tab { flex: 0 0 auto; }
 .tab:hover { color: var(--fg); border-color: transparent; }
 .tab--active {
   background: var(--surface);
@@ -446,18 +495,52 @@ button[type="submit"]:hover:not(:disabled), .update-download:hover {
   box-shadow: var(--elev-1);
 }
 
-/* ── Formularios de la barra lateral ──────────────────────────────────────*/
-.new-doc { display: flex; flex-wrap: wrap; gap: var(--s1); margin-bottom: var(--s2); }
+/* ── Formularios de la barra lateral ──────────────────────────────────────
+   Discretos a propósito: son herramientas, no el contenido. Sin bordes duros ni
+   botones de acento, que es lo que hacía que la barra pareciera un formulario. */
+.new-doc { display: flex; flex-wrap: wrap; gap: var(--s1); margin-bottom: var(--s1); }
+.new-doc input,
+.search-form input,
+.new-doc-template {
+  border-color: transparent;
+  background: color-mix(in srgb, var(--fg) 6%, transparent);
+  font-size: var(--t-md);
+  padding: 0.35rem 0.5rem;
+}
+.new-doc input:hover, .search-form input:hover, .new-doc-template:hover {
+  background: color-mix(in srgb, var(--fg) 9%, transparent);
+  border-color: transparent;
+}
+.new-doc input:focus, .search-form input:focus, .new-doc-template:focus {
+  background: var(--surface);
+  border-color: var(--border-strong);
+}
 .new-doc input { flex: 1; }
-.new-doc button { padding: 0.35rem 0.6rem; }
-.new-doc-template { flex-basis: 100%; font-size: var(--t-sm); padding: 0.3rem 0.4rem; }
+/* El «+» es neutro: crear un documento no necesita el botón más llamativo de la
+   pantalla al lado de un campo vacío. */
+.new-doc button[type="submit"] {
+  background: transparent;
+  border-color: transparent;
+  color: var(--muted);
+  box-shadow: none;
+  padding: 0.35rem 0.55rem;
+  font-size: var(--t-lg);
+  line-height: 1;
+}
+.new-doc button[type="submit"]:hover {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: color-mix(in srgb, var(--accent) 85%, var(--fg));
+}
+.new-doc-template { flex-basis: 100%; font-size: var(--t-sm); padding: 0.28rem 0.4rem; }
 .new-folder { margin-top: 0; }
 .new-folder-toggle {
   display: block;
-  margin: 0 0 var(--s3);
-  font-size: var(--t-sm);
+  margin: 0 0 var(--s2);
+  font-size: var(--t-xs);
   padding: 0;
+  color: var(--faint);
 }
+.new-folder-toggle:hover { color: var(--accent); }
 .search-form { margin-bottom: var(--s2); }
 .search-form input { width: 100%; }
 
@@ -790,8 +873,19 @@ button[type="submit"]:hover:not(:disabled), .update-download:hover {
 }
 
 /* ═══ Panel de fichas ══════════════════════════════════════════════════════ */
-.collection { max-width: 62rem; }
-.collection-tabs { display: flex; gap: var(--s1); margin-bottom: var(--s3); }
+/* Las fichas son una tabla: usan todo el ancho de la ventana. La medida
+   limitada es para leer prosa, no para leer una tabla. */
+.collection { max-width: none; }
+.collection-tabs {
+  display: flex;
+  gap: var(--s1);
+  margin-bottom: var(--s3);
+  padding: 2px;
+  background: color-mix(in srgb, var(--fg) 5%, transparent);
+  border-radius: var(--r-md);
+  align-self: start;
+  width: fit-content;
+}
 .collection-form {
   display: flex;
   flex-wrap: wrap;
@@ -827,7 +921,9 @@ button[type="submit"]:hover:not(:disabled), .update-download:hover {
    Una cifra protagonista, un medidor y una barra por capítulo. La cifra va en
    la misma sans que el resto (nunca serif: se leería como decoración) y las
    barras usan el acento sobre una pista del mismo tono, no un gris. */
-.manuscript { max-width: 54rem; }
+/* Ocupa el ancho disponible, con un tope generoso: la lista de capítulos se lee
+   mejor ancha, pero una barra de 2000px de largo no dice más que una de 900. */
+.manuscript { max-width: 76rem; }
 .manuscript-progress {
   margin-bottom: var(--s5);
   padding: var(--s4);
