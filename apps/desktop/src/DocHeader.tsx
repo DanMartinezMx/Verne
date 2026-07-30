@@ -9,9 +9,13 @@ interface DocHeaderProps {
   metaFields: MetaFieldDef[];
   /** Frontmatter del documento abierto, para poblar esos campos. */
   fields: Record<string, unknown>;
+  /** Valores admitidos por campo, tomados del proyecto (`verne.yaml`). */
+  options: Record<string, string[]>;
   onChangeTitle: (title: string) => void;
   onChangeEstado: (estado: string) => void;
   onChangeField: (key: string, value: unknown) => void;
+  /** Cambia la lista de valores admitidos de un campo, en el proyecto. */
+  onChangeOptions: (key: string, options: string[]) => void;
   onExport: () => void;
   onQuality: () => void;
   onHistory: () => void;
@@ -94,7 +98,9 @@ export function DocHeader(props: DocHeaderProps) {
               key={field.key}
               field={field}
               value={props.fields[field.key]}
+              options={props.options[field.key]}
               onChange={(value) => props.onChangeField(field.key, value)}
+              onChangeOptions={props.onChangeOptions}
             />
           ))}
         </div>
@@ -110,11 +116,16 @@ export function DocHeader(props: DocHeaderProps) {
 function MetaField({
   field,
   value,
+  options,
   onChange,
+  onChangeOptions,
 }: {
   field: MetaFieldDef;
   value: unknown;
+  /** Valores admitidos, ya resueltos del proyecto (no del código). */
+  options: string[] | undefined;
   onChange: (value: unknown) => void;
+  onChangeOptions: (key: string, options: string[]) => void;
 }) {
   const [text, setText] = useState(() => toText(field, value));
 
@@ -146,6 +157,20 @@ function MetaField({
     );
   }
 
+  // Lista de opciones cerradas: se marca, no se escribe. Así no existe el valor
+  // mal escrito que rompe el build de un sitio que valida sus categorías.
+  if (field.type === "list" && options) {
+    return (
+      <OptionsField
+        field={field}
+        options={options}
+        selected={Array.isArray(value) ? value.map(String) : []}
+        onChange={onChange}
+        onChangeOptions={onChangeOptions}
+      />
+    );
+  }
+
   const commit = () => {
     const next = fromText(field, text);
     if (!sameValue(next, value)) onChange(next);
@@ -164,7 +189,7 @@ function MetaField({
         />
       ) : (
         <input
-          type={field.type === "date" ? "date" : "text"}
+          type={field.type === "date" ? "date" : field.type === "number" ? "number" : "text"}
           value={text}
           placeholder={field.placeholder ?? (field.type === "list" ? "una, dos, tres" : undefined)}
           onChange={(e) => setText(e.target.value)}
@@ -173,6 +198,115 @@ function MetaField({
         />
       )}
     </label>
+  );
+}
+
+/**
+ * Campo de lista cerrada: se marcan opciones. La lista es del proyecto (vive en
+ * su `verne.yaml`), así que se puede añadir y quitar desde aquí — las categorías
+ * del blog de una persona no son las de otra.
+ */
+function OptionsField({
+  field,
+  options,
+  selected,
+  onChange,
+  onChangeOptions,
+}: {
+  field: MetaFieldDef;
+  options: string[];
+  selected: string[];
+  onChange: (value: unknown) => void;
+  onChangeOptions: (key: string, options: string[]) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [fresh, setFresh] = useState("");
+
+  function toggle(option: string) {
+    const next = selected.includes(option)
+      ? selected.filter((v) => v !== option)
+      : [...selected, option];
+    onChange(next.length > 0 ? next : undefined);
+  }
+
+  function add() {
+    const clean = fresh.trim();
+    setFresh("");
+    if (clean === "" || options.includes(clean)) return;
+    onChangeOptions(field.key, [...options, clean]);
+    onChange([...selected, clean]);
+  }
+
+  /** Quitar del proyecto también lo quita de este documento. */
+  function removeOption(option: string) {
+    onChangeOptions(
+      field.key,
+      options.filter((o) => o !== option),
+    );
+    if (selected.includes(option)) {
+      const next = selected.filter((v) => v !== option);
+      onChange(next.length > 0 ? next : undefined);
+    }
+  }
+
+  return (
+    <div className="doc-meta-field doc-meta-field--options">
+      <span>
+        {field.label}
+        <button
+          type="button"
+          className="linklike doc-meta-edit"
+          aria-pressed={editing}
+          onClick={() => setEditing((v) => !v)}
+        >
+          {editing ? "listo" : "editar lista"}
+        </button>
+      </span>
+      <div className="doc-meta-options" role="group" aria-label={field.label}>
+        {options.map((option) => (
+          <span key={option} className="doc-meta-option">
+            <button
+              type="button"
+              className={selected.includes(option) ? "chip chip--active" : "chip"}
+              aria-pressed={selected.includes(option)}
+              onClick={() => toggle(option)}
+            >
+              {option}
+            </button>
+            {editing && (
+              <button
+                type="button"
+                className="doc-meta-option-remove"
+                title={`Quitar “${option}” de la lista del proyecto`}
+                aria-label={`Quitar ${option} de la lista`}
+                onClick={() => removeOption(option)}
+              >
+                ×
+              </button>
+            )}
+          </span>
+        ))}
+        {editing && (
+          <span className="doc-meta-option-add">
+            <input
+              value={fresh}
+              placeholder="Nueva…"
+              aria-label={`Añadir a ${field.label}`}
+              onChange={(e) => setFresh(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  add();
+                }
+              }}
+            />
+            <button type="button" onClick={add} title="Añadir a la lista">
+              ＋
+            </button>
+          </span>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -199,6 +333,10 @@ function fromText(field: MetaFieldDef, text: string): unknown {
     return items.length > 0 ? items : undefined;
   }
   if (clean === "") return undefined;
+  if (field.type === "number") {
+    const parsed = Number(clean);
+    return Number.isFinite(parsed) ? parsed : undefined;
+  }
   if (field.type === "date") {
     // Se escribe ISO completo para mantener el formato que el destino espera.
     const parsed = new Date(`${clean}T00:00:00.000Z`);

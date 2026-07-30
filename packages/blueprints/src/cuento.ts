@@ -47,7 +47,7 @@ export const cuentoBlueprint: BlueprintDef = {
       id: "cuento",
       label: "Cuento",
       contents: `---
-title: {{title}}
+title: "{{title}}"
 estado: idea
 ---
 
@@ -57,7 +57,7 @@ estado: idea
       id: "sinopsis-de-envio",
       label: "Sinopsis para enviar",
       contents: `---
-title: {{title}}
+title: "{{title}}"
 estado: idea
 ---
 

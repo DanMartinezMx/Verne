@@ -43,6 +43,14 @@ export {
 } from "./frontmatter.js";
 export { searchProject, type SearchResult } from "./search.js";
 export {
+  applyTemplate,
+  listTemplates,
+  seedTemplates,
+  TEMPLATES_DIR,
+  type Template,
+  type TemplateSeed,
+} from "./templates.js";
+export {
   checkForUpdate,
   compareVersions,
   isNewerVersion,

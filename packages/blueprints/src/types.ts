@@ -69,13 +69,17 @@ export interface MetaFieldDef {
   /** Clave exacta en el frontmatter. */
   key: string;
   label: string;
-  type: "text" | "textarea" | "date" | "list" | "boolean";
+  type: "text" | "textarea" | "date" | "list" | "boolean" | "number";
   /**
-   * El destino lo exige, así que toda plantilla del espacio debe traerlo (hay un
-   * test que lo comprueba). Los opcionales se añaden desde la cabecera cuando
-   * hacen falta: una clave vacía en un generador de sitios es peor que ausente.
+   * Valores INICIALES de un campo de lista cerrada. Se copian al `verne.yaml`
+   * del proyecto al crearlo (`options.<key>`) y desde ese momento los manda el
+   * usuario: los edita desde la cabecera o en el archivo.
+   *
+   * El campo se edita marcando opciones en lugar de escribiendo, así que un
+   * valor mal escrito —el que rompe el build de un sitio que valida categorías—
+   * deja de ser posible en lugar de quedar para una validación posterior.
    */
-  required?: boolean;
+  options?: readonly string[];
   /** Se rellena al crear el documento (`date` → ahora en ISO). */
   autoOnCreate?: boolean;
   /**
@@ -130,6 +134,13 @@ export interface BlueprintDef {
   starterDocument: { fileName: string; contents: string };
   theme: SpaceTheme;
   exportProfiles: ExportProfileId[];
+  /**
+   * Extensión con la que el perfil "cms" guarda el archivo. Verne siempre
+   * escribe `.md` en el proyecto (es lo que dice VPF), pero el destino puede
+   * querer otra: el sitio del maintainer solo renderiza `.mdx` y rechaza `.md`
+   * en su validación de contenido. Por defecto, "md".
+   */
+  cmsExtension?: string;
   templates: TemplateDef[];
   /** Colecciones del espacio. Vacío = el espacio no tiene fichas. */
   collections: CollectionDef[];

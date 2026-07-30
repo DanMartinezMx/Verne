@@ -29,6 +29,17 @@ export interface ProjectManifest {
   createdAt: string;
   /** Nombre del autor (para exportaciones). */
   author?: string;
+  /**
+   * Valores admitidos por campo de frontmatter, por clave del campo. El espacio
+   * declara la FORMA (que el blog tiene categorías); el proyecto declara los
+   * VALORES (cuáles son las tuyas). Nacen de los que sugiere el espacio y a
+   * partir de ahí son del usuario: añadir o quitar es editar esta lista, aquí o
+   * desde la app.
+   *
+   * Sigue siendo una lista cerrada dentro del proyecto, que es lo que evita la
+   * categoría mal escrita que rompe el sitio destino.
+   */
+  options?: Record<string, string[]>;
 }
 
 export function parseManifest(text: string): ProjectManifest {
@@ -71,7 +82,27 @@ export function parseManifest(text: string): ProjectManifest {
   if (typeof m["author"] === "string" && m["author"].trim() !== "") {
     manifest.author = m["author"];
   }
+  const options = readOptions(m["options"]);
+  if (options) manifest.options = options;
   return manifest;
+}
+
+/**
+ * Lee `options` tolerando basura: una lista mal escrita a mano no debe impedir
+ * abrir el proyecto, solo se ignora lo que no sea una lista de textos.
+ */
+function readOptions(raw: unknown): Record<string, string[]> | undefined {
+  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) return undefined;
+  const result: Record<string, string[]> = {};
+  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (!Array.isArray(value)) continue;
+    const values = value
+      .filter((v): v is string => typeof v === "string")
+      .map((v) => v.trim())
+      .filter((v) => v !== "");
+    if (values.length > 0) result[key] = [...new Set(values)];
+  }
+  return Object.keys(result).length > 0 ? result : undefined;
 }
 
 export function serializeManifest(manifest: ProjectManifest): string {

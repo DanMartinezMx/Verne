@@ -38,7 +38,7 @@ export const guionBlueprint: BlueprintDef = {
       id: "escena",
       label: "Escena",
       contents: `---
-title: {{title}}
+title: "{{title}}"
 estado: idea
 ---
 
@@ -55,7 +55,7 @@ Acción.
       id: "escaleta",
       label: "Escaleta de secuencia",
       contents: `---
-title: {{title}}
+title: "{{title}}"
 estado: escaleta
 ---
 

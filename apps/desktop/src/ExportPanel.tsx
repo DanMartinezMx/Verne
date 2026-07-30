@@ -59,6 +59,10 @@ export function ExportPanel(props: ExportPanelProps) {
       .replace(/^-+|-+$/g, "")
       .slice(0, 60) || props.blueprint.vocabulary.documentSingular;
 
+  const cmsExtension = props.blueprint.cmsExtension ?? "md";
+  /** El documento completo: frontmatter + cuerpo, que es lo que el sitio lee. */
+  const full = joinDocument({ frontmatterRaw: props.frontmatterRaw, body: props.body });
+
   return (
     <section className="export">
       <header className="export-header">
@@ -78,31 +82,16 @@ export function ExportPanel(props: ExportPanelProps) {
           <div className="export-card">
             <h3>Para tu sitio</h3>
             <p className="export-note">
-              El archivo Markdown con su frontmatter tal cual: cópialo al repositorio de tu
-              sitio y compila sin retocar nada.
+              El documento con su frontmatter tal cual, con la extensión que tu sitio espera
+              (<code>.{cmsExtension}</code>): cópialo a su carpeta de contenido y compila sin
+              retocar nada.
             </p>
             <div className="export-actions">
-              <button
-                type="button"
-                onClick={() =>
-                  void saveFile(
-                    `${slug}.md`,
-                    joinDocument({ frontmatterRaw: props.frontmatterRaw, body: props.body }),
-                  )
-                }
-              >
-                Guardar .md con frontmatter…
+              <button type="button" onClick={() => void saveFile(`${slug}.${cmsExtension}`, full)}>
+                Guardar .{cmsExtension}…
               </button>
-              <button
-                type="button"
-                onClick={() =>
-                  void copyText(
-                    "Markdown",
-                    joinDocument({ frontmatterRaw: props.frontmatterRaw, body: props.body }),
-                  )
-                }
-              >
-                Copiar .md con frontmatter
+              <button type="button" onClick={() => void copyText("Documento", full)}>
+                Copiar con frontmatter
               </button>
             </div>
           </div>

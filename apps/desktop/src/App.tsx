@@ -1,4 +1,3 @@
-import { open, save } from "@tauri-apps/plugin-dialog";
 import {
   collectionSchemaYaml,
   getBlueprint,
@@ -9,6 +8,7 @@ import {
   addCollectionEntry,
   analyzeInline,
   analyzeText,
+  applyTemplate,
   CONTENT_DIR,
   convertFolderToProject,
   createFolder,
@@ -32,6 +32,9 @@ import {
   restoreDocument,
   restoreSnapshot,
   searchProject,
+  seedTemplates,
+  listTemplates,
+  splitFrontmatter,
   snapshotDocument,
   trashDocument,
   updateCollectionEntry,
@@ -46,6 +49,7 @@ import {
   type QualityReport,
   type SearchResult,
   type Snapshot,
+  type Template,
   type TrashEntry,
   type TreeNode,
   type UpdateInfo,
@@ -69,7 +73,7 @@ import { QualityPanel } from "./QualityPanel.js";
 import { ThemeToggle } from "./ThemeToggle.js";
 import { Toolbar } from "./Toolbar.js";
 import { TrashPanel } from "./TrashPanel.js";
-import { tauriFs } from "./tauri-fs.js";
+import { hostFs, initHost, isPreview, pickDirectory, saveExportFile } from "./host.js";
 import { checkForAppUpdate, currentAppVersion, openDownloadPage } from "./update.js";
 import { UpdateBanner } from "./UpdateBanner.js";
 
@@ -137,6 +141,8 @@ export function App() {
   const [view, setView] = useState<View>("doc");
   /** Fichas por nombre de colección; el espacio decide qué colecciones hay. */
   const [collectionEntries, setCollectionEntries] = useState<Record<string, CollectionEntry[]>>({});
+  /** Plantillas leídas de `plantillas/`: del disco, no del código. */
+  const [templates, setTemplates] = useState<Template[]>([]);
   const [trashEntries, setTrashEntries] = useState<TrashEntry[]>([]);
   const [searchResults, setSearchResults] = useState<SearchResult[] | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -183,7 +189,7 @@ export function App() {
 
   const refreshDocMeta = useCallback(async (path: string, name: string) => {
     const bp = projectRef.current ? getBlueprint(projectRef.current.manifest.blueprint) : null;
-    const meta = await readDocumentMeta(tauriFs, path, name, bp?.tagsField);
+    const meta = await readDocumentMeta(hostFs, path, name, bp?.tagsField);
     setDocsMeta((prev) => {
       const rest = prev.filter((m) => m.path !== path);
       return [...rest, meta];
@@ -200,10 +206,10 @@ export function App() {
     try {
       const body = editor.getMarkdown();
       if (!snapshottedRef.current.has(current.node.path)) {
-        await snapshotDocument(tauriFs, currentProject, current.node.path);
+        await snapshotDocument(hostFs, currentProject, current.node.path);
         snapshottedRef.current.add(current.node.path);
       }
-      await writeDocument(tauriFs, current.node.path, {
+      await writeDocument(hostFs, current.node.path, {
         frontmatterRaw: current.frontmatterRaw,
         body,
       });
@@ -314,14 +320,18 @@ export function App() {
 
   async function refreshProjectData(p: Project) {
     const bp = getBlueprint(p.manifest.blueprint);
-    setTree(await readProjectTree(tauriFs, p));
-    setDocsMeta(await readProjectDocuments(tauriFs, p, bp.tagsField));
-    setTrashEntries(await listTrash(tauriFs, p));
+    setTree(await readProjectTree(hostFs, p));
+    setDocsMeta(await readProjectDocuments(hostFs, p, bp.tagsField));
+    setTrashEntries(await listTrash(hostFs, p));
     const entries: Record<string, CollectionEntry[]> = {};
     for (const collection of bp.collections) {
-      entries[collection.name] = await listCollection(tauriFs, p, collection.name);
+      entries[collection.name] = await listCollection(hostFs, p, collection.name);
     }
     setCollectionEntries(entries);
+    // Las plantillas del espacio se siembran una vez; si ya existen, no se pisan
+    // (son del usuario a partir de ese momento).
+    await seedTemplates(hostFs, p, bp.templates);
+    setTemplates(await listTemplates(hostFs, p));
   }
 
   async function loadProject(p: Project) {
@@ -354,13 +364,14 @@ export function App() {
     });
   }
 
-  // Al arrancar, reabre el último proyecto usado (si sigue existiendo).
+  // Al arrancar, prepara el anfitrión y reabre el último proyecto usado.
   useEffect(() => {
-    const last = loadRecents()[0];
-    if (!last) return;
     void (async () => {
+      await initHost();
+      const last = loadRecents()[0];
+      if (!last) return;
       try {
-        await loadProject(await openProject(tauriFs, last.dir));
+        await loadProject(await openProject(hostFs, last.dir));
       } catch {
         // La carpeta ya no está o no es un proyecto: se queda en Inicio.
       }
@@ -370,7 +381,7 @@ export function App() {
 
   async function handleOpenRecent(recent: RecentProject) {
     try {
-      await loadProject(await openProject(tauriFs, recent.dir));
+      await loadProject(await openProject(hostFs, recent.dir));
     } catch (e) {
       setRecents((prev) => {
         const next = prev.filter((r) => r.dir !== recent.dir);
@@ -395,10 +406,10 @@ export function App() {
   }
 
   async function handleOpenProject() {
-    const dir = await open({ directory: true, title: "Abrir proyecto Verne" });
-    if (typeof dir !== "string") return;
+    const dir = await pickDirectory("Abrir proyecto Verne");
+    if (dir === null) return;
     try {
-      await loadProject(await openProject(tauriFs, dir));
+      await loadProject(await openProject(hostFs, dir));
     } catch (e) {
       // Una carpeta con Markdown pero sin verne.yaml no es un error: es una
       // invitación a adoptarla (P: función de adopción más barata que existe).
@@ -416,7 +427,7 @@ export function App() {
     const dir = convertDir;
     if (!dir) return;
     try {
-      const project = await convertFolderToProject(tauriFs, dir, { name, blueprint: blueprintId });
+      const project = await convertFolderToProject(hostFs, dir, { name, blueprint: blueprintId });
       await ensureSpaceCollections(project, getBlueprint(blueprintId));
       setConvertDir(null);
       await loadProject(project);
@@ -427,17 +438,16 @@ export function App() {
 
   async function handleCreateProject(name: string, blueprintId: BlueprintId) {
     try {
-      const dir = await open({
-        directory: true,
-        title: "Elige una carpeta (vacía) para el proyecto",
-      });
-      if (typeof dir !== "string") return;
+      const dir = await pickDirectory("Elige una carpeta (vacía) para el proyecto");
+      if (dir === null) return;
       const bp = getBlueprint(blueprintId);
-      const project = await createProject(tauriFs, dir, {
+      const options = seedOptions(bp);
+      const project = await createProject(hostFs, dir, {
         name,
         blueprint: blueprintId,
         starterDocument: bp.starterDocument,
         ...(bp.scaffold ? { scaffold: bp.scaffold } : {}),
+        ...(options ? { options } : {}),
       });
       await ensureSpaceCollections(project, bp);
       await loadProject(project);
@@ -446,10 +456,36 @@ export function App() {
     }
   }
 
+  /**
+   * Valores admitidos de cada campo de lista: los del proyecto si ya los tiene,
+   * y si no los que sugiere el espacio. El proyecto manda (RFC-0003 §5).
+   */
+  function effectiveOptions(p: Project, bp: BlueprintDef): Record<string, string[]> {
+    const result: Record<string, string[]> = {};
+    for (const field of bp.metaFields) {
+      const fromProject = p.manifest.options?.[field.key];
+      if (fromProject) result[field.key] = fromProject;
+      else if (field.options) result[field.key] = [...field.options];
+    }
+    return result;
+  }
+
+  /** Cambia la lista de valores admitidos de un campo, en el `verne.yaml`. */
+  async function handleChangeOptions(key: string, values: string[]) {
+    const p = projectRef.current;
+    if (!p || !blueprint) return;
+    try {
+      const next = { ...effectiveOptions(p, blueprint), [key]: values };
+      setProject(await updateProjectManifest(hostFs, p, { options: next }));
+    } catch (e) {
+      reportError(e);
+    }
+  }
+
   /** Crea las carpetas de colección del espacio con su `_schema.yaml` generado. */
   async function ensureSpaceCollections(p: Project, bp: BlueprintDef) {
     for (const collection of bp.collections) {
-      await ensureCollection(tauriFs, p, collection.name, collectionSchemaYaml(collection));
+      await ensureCollection(hostFs, p, collection.name, collectionSchemaYaml(collection));
     }
   }
 
@@ -459,7 +495,7 @@ export function App() {
     if (node.kind !== "document") return;
     try {
       await saveNow(); // nunca cambiar de documento con cambios sin escribir
-      const parts = await readDocument(tauriFs, node.path);
+      const parts = await readDocument(hostFs, node.path);
       dirtyRef.current = false;
       setSaveState("saved");
       setDoc({ node, frontmatterRaw: parts.frontmatterRaw, body: parts.body });
@@ -471,7 +507,14 @@ export function App() {
     }
   }
 
-  async function handleNewDocument(rawTitle: string) {
+  /** Relee las plantillas del disco: si el usuario editó una, aquí se ve. */
+  async function refreshTemplates() {
+    const p = projectRef.current;
+    if (!p) return;
+    setTemplates(await listTemplates(hostFs, p));
+  }
+
+  async function handleNewDocument(rawTitle: string, templateId?: string) {
     const p = projectRef.current;
     if (!p || !blueprint) return;
     try {
@@ -482,11 +525,20 @@ export function App() {
       const title = isDaily ? todayTitle(p.manifest.language) : rawTitle;
       const slug = (isDaily ? new Date().toISOString().slice(0, 10) : slugify(title)) || "sin-titulo";
       let path = joinPath(p.dir, CONTENT_DIR, `${slug}.md`);
-      for (let n = 2; await tauriFs.exists(path); n++) {
+      for (let n = 2; await hostFs.exists(path); n++) {
         path = joinPath(p.dir, CONTENT_DIR, `${slug}-${n}.md`);
       }
-      await writeDocument(tauriFs, path, newDocumentParts(blueprint, title));
-      setTree(await readProjectTree(tauriFs, p));
+      // Con plantilla: su contenido, con las variables sustituidas. Sin ella, un
+      // documento en blanco con lo que el espacio rellena solo.
+      const template = templateId ? templates.find((t) => t.id === templateId) : undefined;
+      await writeDocument(
+        hostFs,
+        path,
+        template
+          ? splitFrontmatter(applyTemplate(template.contents, { title }))
+          : newDocumentParts(blueprint, title),
+      );
+      setTree(await readProjectTree(hostFs, p));
       const name = path.split("/").pop()?.replace(/\.md$/, "") ?? slug;
       await refreshDocMeta(path, name);
       await handleSelect({ name, path, kind: "document" });
@@ -501,8 +553,8 @@ export function App() {
     const p = projectRef.current;
     if (!p) return;
     try {
-      await createFolder(tauriFs, p, name);
-      setTree(await readProjectTree(tauriFs, p));
+      await createFolder(hostFs, p, name);
+      setTree(await readProjectTree(hostFs, p));
     } catch (e) {
       reportError(e);
     }
@@ -513,8 +565,8 @@ export function App() {
   async function afterTreeChange(oldPath: string, newPath: string) {
     const p = projectRef.current;
     if (!p) return;
-    setTree(await readProjectTree(tauriFs, p));
-    setDocsMeta(await readProjectDocuments(tauriFs, p));
+    setTree(await readProjectTree(hostFs, p));
+    setDocsMeta(await readProjectDocuments(hostFs, p));
     const current = docRef.current;
     if (!current) return;
     const remapped = remapPath(oldPath, newPath, current.node.path);
@@ -524,7 +576,7 @@ export function App() {
       snapshottedRef.current.add(remapped);
     }
     const name = remapped.split("/").pop()?.replace(/\.md$/i, "") ?? current.node.name;
-    const parts = await readDocument(tauriFs, remapped);
+    const parts = await readDocument(hostFs, remapped);
     setDoc({ node: { name, path: remapped, kind: "document" }, ...parts });
     setEditorNonce((n) => n + 1);
   }
@@ -534,7 +586,7 @@ export function App() {
     if (!p) return;
     try {
       await saveNow();
-      const newPath = await renameEntry(tauriFs, p, node.path, newName);
+      const newPath = await renameEntry(hostFs, p, node.path, newName);
       await afterTreeChange(node.path, newPath);
     } catch (e) {
       reportError(e);
@@ -546,7 +598,7 @@ export function App() {
     if (!p) return;
     try {
       await saveNow();
-      const newPath = await moveEntry(tauriFs, p, node.path, targetDir);
+      const newPath = await moveEntry(hostFs, p, node.path, targetDir);
       await afterTreeChange(node.path, newPath);
     } catch (e) {
       reportError(e);
@@ -559,9 +611,9 @@ export function App() {
     if (!current) return;
     try {
       await saveNow();
-      const parts = await readDocument(tauriFs, current.node.path);
+      const parts = await readDocument(hostFs, current.node.path);
       const updated = withFrontmatterFields(parts, changes);
-      await writeDocument(tauriFs, current.node.path, updated);
+      await writeDocument(hostFs, current.node.path, updated);
       setDoc({ ...current, frontmatterRaw: updated.frontmatterRaw });
       await refreshDocMeta(current.node.path, current.node.name);
     } catch (e) {
@@ -589,11 +641,11 @@ export function App() {
     try {
       dirtyRef.current = false; // el documento se va: no re-escribirlo
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-      await trashDocument(tauriFs, p, current.node.path);
+      await trashDocument(hostFs, p, current.node.path);
       setDoc(null);
       setDocsMeta((prev) => prev.filter((m) => m.path !== current.node.path));
-      setTree(await readProjectTree(tauriFs, p));
-      setTrashEntries(await listTrash(tauriFs, p));
+      setTree(await readProjectTree(hostFs, p));
+      setTrashEntries(await listTrash(hostFs, p));
     } catch (e) {
       reportError(e);
     }
@@ -603,9 +655,9 @@ export function App() {
     const p = projectRef.current;
     if (!p) return;
     try {
-      const restored = await restoreDocument(tauriFs, p, entry.path);
-      setTree(await readProjectTree(tauriFs, p));
-      setTrashEntries(await listTrash(tauriFs, p));
+      const restored = await restoreDocument(hostFs, p, entry.path);
+      setTree(await readProjectTree(hostFs, p));
+      setTrashEntries(await listTrash(hostFs, p));
       const name = restored.split("/").pop()?.replace(/\.md$/, "") ?? entry.name;
       await refreshDocMeta(restored, name);
     } catch (e) {
@@ -622,11 +674,11 @@ export function App() {
       setSearchResults(null);
       return;
     }
-    setSearchResults(await searchProject(tauriFs, p, query, blueprint?.tagsField));
+    setSearchResults(await searchProject(hostFs, p, query, blueprint?.tagsField));
   }
 
   async function reloadCollection(p: Project, name: string) {
-    const entries = await listCollection(tauriFs, p, name);
+    const entries = await listCollection(hostFs, p, name);
     setCollectionEntries((prev) => ({ ...prev, [name]: entries }));
   }
 
@@ -643,8 +695,8 @@ export function App() {
           .map((f) => String(fields[f.key] ?? ""))
           .join("-"),
       );
-      await ensureCollection(tauriFs, p, name, collectionSchemaYaml(def));
-      await addCollectionEntry(tauriFs, p, name, slug || "ficha", fields);
+      await ensureCollection(hostFs, p, name, collectionSchemaYaml(def));
+      await addCollectionEntry(hostFs, p, name, slug || "ficha", fields);
       await reloadCollection(p, name);
     } catch (e) {
       reportError(e);
@@ -659,7 +711,7 @@ export function App() {
     const p = projectRef.current;
     if (!p) return;
     try {
-      await updateCollectionEntry(tauriFs, path, changes);
+      await updateCollectionEntry(hostFs, path, changes);
       await reloadCollection(p, name);
     } catch (e) {
       reportError(e);
@@ -678,7 +730,7 @@ export function App() {
     if (!current) return;
     try {
       await saveNow();
-      const parts = await readDocument(tauriFs, current.node.path);
+      const parts = await readDocument(hostFs, current.node.path);
       setExportParts(parts);
       setView("exportar");
     } catch (e) {
@@ -691,7 +743,7 @@ export function App() {
     if (!current) return;
     try {
       await saveNow();
-      const parts = await readDocument(tauriFs, current.node.path);
+      const parts = await readDocument(hostFs, current.node.path);
       setQualityReport(analyzeText(parts.body));
       setView("calidad");
     } catch (e) {
@@ -707,11 +759,11 @@ export function App() {
     if (!current || !p) return;
     try {
       await saveNow();
-      const snapshots = await listSnapshots(tauriFs, p, current.node.path);
+      const snapshots = await listSnapshots(hostFs, p, current.node.path);
       setHistory(snapshots);
       const first = snapshots[0] ?? null;
       setHistorySelected(first);
-      setHistoryPreview(first ? (await readDocument(tauriFs, first.path)).body : "");
+      setHistoryPreview(first ? (await readDocument(hostFs, first.path)).body : "");
       setView("historial");
     } catch (e) {
       reportError(e);
@@ -721,7 +773,7 @@ export function App() {
   async function handleSelectSnapshot(snapshot: Snapshot) {
     try {
       setHistorySelected(snapshot);
-      setHistoryPreview((await readDocument(tauriFs, snapshot.path)).body);
+      setHistoryPreview((await readDocument(hostFs, snapshot.path)).body);
     } catch (e) {
       reportError(e);
     }
@@ -732,11 +784,11 @@ export function App() {
     const p = projectRef.current;
     if (!current || !p) return;
     try {
-      await restoreSnapshot(tauriFs, p, current.node.path, snapshot.path);
+      await restoreSnapshot(hostFs, p, current.node.path, snapshot.path);
       // El estado restaurado ya está respaldado: evita un snapshot duplicado
       // en el próximo guardado de esta sesión.
       snapshottedRef.current.add(current.node.path);
-      const parts = await readDocument(tauriFs, current.node.path);
+      const parts = await readDocument(hostFs, current.node.path);
       dirtyRef.current = false;
       setSaveState("saved");
       setDoc({ node: current.node, frontmatterRaw: parts.frontmatterRaw, body: parts.body });
@@ -753,7 +805,7 @@ export function App() {
     const p = projectRef.current;
     if (!p) return;
     try {
-      setProject(await updateProjectManifest(tauriFs, p, { author }));
+      setProject(await updateProjectManifest(hostFs, p, { author }));
     } catch (e) {
       reportError(e);
     }
@@ -766,18 +818,7 @@ export function App() {
     const p = projectRef.current;
     if (!p) return false;
     try {
-      const extension = suggestedName.split(".").pop() ?? "txt";
-      const target = await save({
-        defaultPath: joinPath(p.dir, EXPORT_DIR, suggestedName),
-        filters: [{ name: extension.toUpperCase(), extensions: [extension] }],
-      });
-      if (typeof target !== "string") return false;
-      if (typeof contents === "string") {
-        await tauriFs.writeTextFile(target, contents);
-      } else {
-        await tauriFs.writeBinaryFile(target, contents);
-      }
-      return true;
+      return await saveExportFile(joinPath(p.dir, EXPORT_DIR), suggestedName, contents);
     } catch (e) {
       reportError(e);
       return false;
@@ -894,7 +935,9 @@ export function App() {
             isDaily ? todayTitle(project.manifest.language) : blueprint.vocabulary.newDocumentPlaceholder
           }
           allowEmpty={isDaily}
-          onCreate={handleNewDocument}
+          templates={templates}
+          onFocusTemplates={() => void refreshTemplates()}
+          onCreate={(title, templateId) => void handleNewDocument(title, templateId)}
         />
 
         <NewFolderForm onCreate={handleNewFolder} />
@@ -1030,9 +1073,11 @@ export function App() {
                 frontmatterRaw: doc.frontmatterRaw,
                 body: doc.body,
               })}
+              options={effectiveOptions(project, blueprint)}
               onChangeTitle={(title) => void updateDocMetadata({ title })}
               onChangeEstado={(estado) => void changeEstado(estado)}
               onChangeField={(key, value) => void updateDocMetadata({ [key]: value })}
+              onChangeOptions={(key, values) => void handleChangeOptions(key, values)}
               onExport={() => void handleOpenExport()}
               onQuality={() => void handleOpenQuality()}
               onHistory={() => void handleOpenHistory()}
@@ -1155,20 +1200,26 @@ function SearchResultsList({
 function NewDocumentForm({
   placeholder,
   allowEmpty,
+  templates,
+  onFocusTemplates,
   onCreate,
 }: {
   placeholder: string;
   allowEmpty: boolean;
-  onCreate: (title: string) => void;
+  templates: Template[];
+  /** Se avisa al abrir el selector para releer `plantillas/` del disco. */
+  onFocusTemplates: () => void;
+  onCreate: (title: string, templateId?: string) => void;
 }) {
   const [title, setTitle] = useState("");
+  const [templateId, setTemplateId] = useState("");
   return (
     <form
       className="new-doc"
       onSubmit={(e) => {
         e.preventDefault();
         if (title.trim() || allowEmpty) {
-          onCreate(title.trim());
+          onCreate(title.trim(), templateId || undefined);
           setTitle("");
         }
       }}
@@ -1182,6 +1233,23 @@ function NewDocumentForm({
       <button type="submit" title="Crear documento">
         +
       </button>
+      {templates.length > 0 && (
+        <select
+          className="new-doc-template"
+          value={templateId}
+          aria-label="Plantilla"
+          onMouseDown={onFocusTemplates}
+          onFocus={onFocusTemplates}
+          onChange={(e) => setTemplateId(e.target.value)}
+        >
+          <option value="">En blanco</option>
+          {templates.map((t) => (
+            <option key={t.id} value={t.id}>
+              {t.label}
+            </option>
+          ))}
+        </select>
+      )}
     </form>
   );
 }
@@ -1435,6 +1503,18 @@ function slugify(text: string): string {
  * campos que el espacio rellena solo (`autoOnCreate` y `derivedFromState`). Así
  * una entrada de blog nace con su `createdAt` y su `draft` sin código de blog.
  */
+/**
+ * Valores iniciales de los campos de lista que el espacio sugiere, para escribir
+ * en el `verne.yaml` del proyecto nuevo. A partir de ahí son del usuario.
+ */
+function seedOptions(blueprint: BlueprintDef): Record<string, string[]> | null {
+  const options: Record<string, string[]> = {};
+  for (const field of blueprint.metaFields) {
+    if (field.options) options[field.key] = [...field.options];
+  }
+  return Object.keys(options).length > 0 ? options : null;
+}
+
 function newDocumentParts(blueprint: BlueprintDef, title: string) {
   const fields: Record<string, unknown> = { title, estado: blueprint.initialState };
   for (const field of blueprint.metaFields) {

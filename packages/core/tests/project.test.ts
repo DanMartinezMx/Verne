@@ -12,6 +12,7 @@ import {
   openProject,
   parseManifest,
   readProjectTree,
+  updateProjectManifest,
   VerneError,
   VPF_VERSION,
 } from "../src/index.js";
@@ -64,6 +65,45 @@ describe("createProject / openProject", () => {
     expect(manifest.blueprint).toBe("novela-de-2032");
     expect(isKnownBlueprint(manifest.blueprint)).toBe(false);
     expect(isKnownBlueprint("blog")).toBe(true);
+  });
+
+  // Las listas cerradas (categorías del blog) son del proyecto, no del código:
+  // el espacio solo sugiere los valores iniciales.
+  it("guarda las opciones del proyecto y deja añadir y quitar valores", async () => {
+    const created = await createProject(nodeFs, dir, {
+      name: "Mi blog",
+      blueprint: "blog",
+      options: { categories: ["Tech", "Personal"] },
+    });
+    expect(created.manifest.options?.["categories"]).toEqual(["Tech", "Personal"]);
+
+    const withMine = await updateProjectManifest(nodeFs, created, {
+      options: { categories: ["Personal", "Cocina", "Bici"] },
+    });
+    expect(withMine.manifest.options?.["categories"]).toEqual(["Personal", "Cocina", "Bici"]);
+
+    // Y sigue estando en el archivo, legible a mano.
+    const yaml = await nodeFs.readTextFile(joinPath(dir, "verne.yaml"));
+    expect(yaml).toContain("Cocina");
+    expect(yaml).not.toContain("Tech");
+    expect((await openProject(nodeFs, dir)).manifest.options?.["categories"]).toEqual([
+      "Personal",
+      "Cocina",
+      "Bici",
+    ]);
+  });
+
+  it("tolera unas opciones mal escritas a mano sin dejar de abrir el proyecto", async () => {
+    await createProject(nodeFs, dir, { name: "Mi blog", blueprint: "blog" });
+    const path = joinPath(dir, "verne.yaml");
+    await nodeFs.writeTextFile(
+      path,
+      "vpf: '0.1'\nname: Mi blog\nblueprint: blog\noptions:\n  categories: no soy una lista\n  otras: [ '  ', Personal, Personal ]\n",
+    );
+    const manifest = (await openProject(nodeFs, dir)).manifest;
+    expect(manifest.options?.["categories"]).toBeUndefined();
+    // Se limpian los vacíos y los repetidos.
+    expect(manifest.options?.["otras"]).toEqual(["Personal"]);
   });
 
   it("sigue rechazando un manifiesto roto", () => {

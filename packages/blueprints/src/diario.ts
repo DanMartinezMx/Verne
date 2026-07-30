@@ -23,7 +23,7 @@ export const diarioBlueprint: BlueprintDef = {
       id: "entrada",
       label: "Entrada libre",
       contents: `---
-title: {{title}}
+title: "{{title}}"
 estado: entrada
 ---
 
@@ -33,7 +33,7 @@ estado: entrada
       id: "entrada-con-preguntas",
       label: "Entrada con preguntas",
       contents: `---
-title: {{title}}
+title: "{{title}}"
 estado: entrada
 ---
 

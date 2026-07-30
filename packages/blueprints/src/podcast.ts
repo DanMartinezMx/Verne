@@ -29,7 +29,7 @@ export const podcastBlueprint: BlueprintDef = {
       id: "episodio",
       label: "Guion de episodio",
       contents: `---
-title: {{title}}
+title: "{{title}}"
 estado: idea
 ---
 
@@ -48,7 +48,7 @@ Resumen, llamada a la acción, despedida.
       id: "notas-del-programa",
       label: "Notas del programa",
       contents: `---
-title: {{title}}
+title: "{{title}}"
 estado: idea
 ---
 
