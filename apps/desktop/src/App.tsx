@@ -61,6 +61,7 @@ import {
 import type { FormatState, ProseEditorHandle } from "@verne/editor";
 import { ProjectTree, type FolderOption, type TreeDecoration } from "@verne/ui";
 import {
+  Fragment,
   useCallback,
   useEffect,
   useRef,
@@ -1277,6 +1278,21 @@ export function App() {
 }
 
 /**
+ * Agrupa espacios por su carpeta en la biblioteca, manteniendo el orden que ya
+ * trae `listSpaces` (raíz primero). Es lo que hace que varias novelas en
+ * `novelas/` se vean juntas sin que Verne imponga ninguna estructura.
+ */
+function groupSpaces(spaces: SpaceSummary[]): [string, SpaceSummary[]][] {
+  const groups = new Map<string, SpaceSummary[]>();
+  for (const space of spaces) {
+    const existing = groups.get(space.group);
+    if (existing) existing.push(space);
+    else groups.set(space.group, [space]);
+  }
+  return [...groups];
+}
+
+/**
  * Conmutador de espacios (RFC-0003 §6): el espacio activo y los demás de la
  * biblioteca, para saltar entre ellos sin volver a Inicio. Sin biblioteca
  * elegida solo muestra el nombre y el botón de cambiar de proyecto.
@@ -1316,21 +1332,30 @@ function SpaceSwitcher({
 
       {open && (
         <ul className="space-list" role="menu">
-          {others.map((space) => (
-            <li key={space.dir} role="none">
-              <button
-                type="button"
-                role="menuitem"
-                onClick={() => {
-                  setOpen(false);
-                  onSwitch(space.dir);
-                }}
-                title={space.dir}
-              >
-                <span className="space-list-name">{space.manifest.name}</span>
-                <span className="badge">{getBlueprint(space.manifest.blueprint).label}</span>
-              </button>
-            </li>
+          {groupSpaces(others).map(([group, inGroup]) => (
+            <Fragment key={group}>
+              {group !== "" && (
+                <li className="space-list-group" role="none">
+                  {group}
+                </li>
+              )}
+              {inGroup.map((space) => (
+                <li key={space.dir} role="none">
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setOpen(false);
+                      onSwitch(space.dir);
+                    }}
+                    title={space.dir}
+                  >
+                    <span className="space-list-name">{space.manifest.name}</span>
+                    <span className="badge">{getBlueprint(space.manifest.blueprint).label}</span>
+                  </button>
+                </li>
+              ))}
+            </Fragment>
           ))}
           {others.length === 0 && (
             <li className="space-list-empty" role="none">
@@ -1641,25 +1666,30 @@ function Welcome({
                 Todavía no hay espacios aquí. Crea el primero abajo.
               </p>
             ) : (
-              <ul className="recents">
-                {spaces.map((space) => (
-                  <li key={space.dir}>
-                    <button
-                      type="button"
-                      className="recent"
-                      onClick={() => onOpenSpace(space.dir)}
-                    >
-                      <span className="recent-name">{space.manifest.name}</span>
-                      <span className="recent-meta">
-                        <span className="badge">
-                          {getBlueprint(space.manifest.blueprint).label}
-                        </span>
-                        <span className="recent-dir">{space.folder}</span>
-                      </span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
+              groupSpaces(spaces).map(([group, inGroup]) => (
+                <div key={group} className="library-group">
+                  {group !== "" && <h3 className="library-group-name">{group}</h3>}
+                  <ul className="recents">
+                    {inGroup.map((space) => (
+                      <li key={space.dir}>
+                        <button
+                          type="button"
+                          className="recent"
+                          onClick={() => onOpenSpace(space.dir)}
+                        >
+                          <span className="recent-name">{space.manifest.name}</span>
+                          <span className="recent-meta">
+                            <span className="badge">
+                              {getBlueprint(space.manifest.blueprint).label}
+                            </span>
+                            <span className="recent-dir">{space.folder}</span>
+                          </span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))
             )}
           </>
         )}

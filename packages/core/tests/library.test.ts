@@ -62,4 +62,47 @@ describe("biblioteca de espacios (RFC-0003 §6)", () => {
   it("una biblioteca que no existe da lista vacía, no un error", async () => {
     expect(await listSpaces(nodeFs, joinPath(library, "no-existe"))).toEqual([]);
   });
+
+  // Varias novelas se organizan en una carpeta: cada una sigue siendo su propio
+  // espacio, con sus fichas y su meta, y la biblioteca las agrupa.
+  it("encuentra espacios dentro de carpetas y dice a qué grupo pertenecen", async () => {
+    await createProject(nodeFs, joinPath(library, "novelas", "el-faro"), {
+      name: "El faro de Amelia",
+      blueprint: "novela",
+    });
+    await createProject(nodeFs, joinPath(library, "novelas", "la-segunda"), {
+      name: "La segunda",
+      blueprint: "novela",
+    });
+    await createProject(nodeFs, joinPath(library, "mi-blog"), { name: "Mi blog", blueprint: "blog" });
+
+    const spaces = await listSpaces(nodeFs, library);
+    expect(spaces.map((s) => [s.group, s.manifest.name])).toEqual([
+      ["", "Mi blog"],
+      ["novelas", "El faro de Amelia"],
+      ["novelas", "La segunda"],
+    ]);
+  });
+
+  it("no baja dentro de un espacio: un proyecto nunca contiene otro", async () => {
+    const dir = joinPath(library, "mi-blog");
+    await createProject(nodeFs, dir, { name: "Mi blog", blueprint: "blog" });
+    // Un verne.yaml perdido dentro del contenido no debe aparecer como espacio.
+    await nodeFs.mkdir(joinPath(dir, "contenido", "raro"));
+    await nodeFs.writeTextFile(
+      joinPath(dir, "contenido", "raro", "verne.yaml"),
+      "vpf: '0.2'\nname: Colado\nblueprint: blog\n",
+    );
+
+    expect((await listSpaces(nodeFs, library)).map((s) => s.manifest.name)).toEqual(["Mi blog"]);
+  });
+
+  it("no se pierde recorriendo un árbol profundo", async () => {
+    await createProject(nodeFs, joinPath(library, "a", "b", "c", "d", "muy-hondo"), {
+      name: "Muy hondo",
+      blueprint: "blog",
+    });
+    // Más allá del límite de profundidad, simplemente no se encuentra.
+    expect(await listSpaces(nodeFs, library)).toEqual([]);
+  });
 });

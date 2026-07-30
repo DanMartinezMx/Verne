@@ -54,6 +54,27 @@ estado: idea
 `,
     },
     {
+      id: "escena-y-secuela",
+      label: "Escena y secuela (Swain)",
+      contents: `---
+title: "{{title}}"
+estado: idea
+---
+
+> Modelo de Dwight V. Swain (*Techniques of the Selling Writer*, 1965): una
+> escena es un intento que sale mal; una secuela, lo que el personaje hace con
+> ese fracaso. En un cuento suele bastar con una de cada.
+
+**Objetivo.** Qué quiere el personaje, concreto y ahora.
+
+**Conflicto.** Quién o qué se lo impide.
+
+**Desastre.** Cómo acaba peor que al empezar.
+
+**Reacción · dilema · decisión.**
+`,
+    },
+    {
       id: "sinopsis-de-envio",
       label: "Sinopsis para enviar",
       contents: `---

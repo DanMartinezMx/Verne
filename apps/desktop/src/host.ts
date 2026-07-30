@@ -38,8 +38,9 @@ export async function pickDirectory(title: string): Promise<string | null> {
   if (isPreview) {
     const answer = window.prompt(
       `${title}\n\nPrevisualización en navegador. Espacios de demo:\n` +
-        `${PREVIEW_LIBRARY}/mi-blog\n${PREVIEW_LIBRARY}/cuentos\n${PREVIEW_LIBRARY}/la-novela`,
-      joinPath(PREVIEW_LIBRARY, "la-novela"),
+        `${PREVIEW_LIBRARY}/mi-blog\n${PREVIEW_LIBRARY}/cuentos\n` +
+        `${PREVIEW_LIBRARY}/novelas/el-faro\n${PREVIEW_LIBRARY}/novelas/la-segunda`,
+      joinPath(PREVIEW_LIBRARY, "novelas", "el-faro"),
     );
     return answer?.trim() ? answer.trim() : null;
   }

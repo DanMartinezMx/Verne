@@ -66,7 +66,11 @@ lenta. Amelia contaba los segundos entre destello y destello.
     respuesta: "pendiente",
   });
 
-  await space(fs, "la-novela", "El faro de Amelia", "novela", async (dir) => {
+  // Dos novelas dentro de `novelas/`: cada una su propio espacio, agrupadas en
+  // el conmutador. Es lo que la biblioteca con carpetas hace posible.
+  await space(fs, "novelas/la-segunda", "La segunda", "novela", async () => {});
+
+  await space(fs, "novelas/el-faro", "El faro de Amelia", "novela", async (dir) => {
     await writeDocument(fs, joinPath(dir, CONTENT_DIR, "01-parte-uno", "01-el-regreso.md"), {
       frontmatterRaw: `---
 title: El regreso
@@ -97,14 +101,23 @@ pov: Amelia
   });
 
   const novela = {
-    dir: joinPath(PREVIEW_LIBRARY, "la-novela"),
+    dir: joinPath(PREVIEW_LIBRARY, "novelas", "el-faro"),
     manifest: manifestOf("El faro de Amelia", "novela"),
   };
   await addCollectionEntry(fs, novela, "personajes", "amelia", {
     nombre: "Amelia",
-    quiere: "Saber por qué se fue su madre sin decir nada",
-    teme: "Que la respuesta la deje igual que estaba",
-    arco: "De no abrir la carta a leerla en voz alta",
+    rol: "protagonista",
+    deseo: "Saber por qué se fue su madre sin decir nada",
+    necesidad: "Perdonarse por no haberla buscado antes",
+    oponente: "Ella misma, y el tío que guardó la carta once años",
+    revelacion: "Que la carta no era para ella",
+  });
+  await addCollectionEntry(fs, novela, "tramas", "la-carta", {
+    hilo: "La carta sin abrir",
+    tipo: "principal",
+    planta: "Capítulo 1, en el bolsillo del abrigo",
+    paga: "Sin decidir",
+    estado: "abierto",
   });
 }
 

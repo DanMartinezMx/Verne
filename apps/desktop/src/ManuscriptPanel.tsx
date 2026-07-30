@@ -87,17 +87,20 @@ function PartRow({
     return <span className="manuscript-folder">{part.title}</span>;
   }
   const name = part.path.split("/").pop()?.replace(/\.md$/i, "") ?? part.title;
+  const share = Math.round((part.words / longest) * 100);
   return (
     <button
       type="button"
       className="manuscript-part"
       onClick={() => onSelect({ name, path: part.path, kind: "document" })}
+      title={`${part.title} · ${part.words.toLocaleString("es")} palabras (${share}% del capítulo más largo)`}
     >
       <span className="manuscript-part-title">{part.title}</span>
       {/* Barra proporcional al capítulo más largo: se ve de un vistazo cuál se
-          quedó corto, que es la pregunta real al revisar una novela. */}
+          quedó corto, que es la pregunta real al revisar una novela. La cifra va
+          siempre al lado, así que la longitud nunca es el único dato. */}
       <span className="manuscript-bar" aria-hidden="true">
-        <span style={{ width: `${Math.round((part.words / longest) * 100)}%` }} />
+        <span style={{ width: `${share}%` }} />
       </span>
       <span className="manuscript-part-words">{part.words.toLocaleString("es")}</span>
     </button>

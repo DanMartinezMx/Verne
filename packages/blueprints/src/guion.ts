@@ -26,11 +26,13 @@ export const guionBlueprint: BlueprintDef = {
     {
       name: "personajes",
       label: "Personajes",
-      description: "Quién es quién: lo mínimo para no contradecirte en la escena 40.",
+      description:
+        "Personajes. Deseo, oponente y necesidad: el mínimo de John Truby (The Anatomy of Story) para no contradecirte en la escena 40.",
       fields: [
         { key: "nombre", label: "Nombre", type: "string" },
-        { key: "quiere", label: "Qué quiere", type: "string" },
-        { key: "teme", label: "Qué teme", type: "string" },
+        { key: "deseo", label: "Qué quiere", type: "string" },
+        { key: "necesidad", label: "Qué necesita (y no sabe)", type: "string" },
+        { key: "oponente", label: "Quién se lo impide", type: "string" },
       ],
     },
   ],
@@ -53,17 +55,55 @@ Acción.
 `,
     },
     {
-      id: "escaleta",
-      label: "Escaleta de secuencia",
+      id: "ocho-secuencias",
+      label: "Escaleta en ocho secuencias (Daniel / Gulino)",
       contents: `---
 title: "{{title}}"
 estado: escaleta
 ---
 
-| # | Escena | Qué pasa | Qué cambia |
+> El enfoque de secuencias de Frank Daniel, recogido por Paul Gulino (*Screenwriting:
+> The Sequence Approach*, 2004): un largometraje son ocho secuencias de unos
+> quince minutos, cada una con su propio objetivo y su propio final.
+
+| # | Secuencia | Objetivo de la secuencia | Cómo acaba |
 |---|---|---|---|
-| 1 | INT. — DÍA |  |  |
-| 2 |  |  |  |
+| 1 | Planteamiento y detonante |  |  |
+| 2 | Objetivo declarado |  |  |
+| 3 | Primer obstáculo |  |  |
+| 4 | Primer intento serio (al punto medio) |  |  |
+| 5 | Consecuencias del punto medio |  |  |
+| 6 | Presión máxima |  |  |
+| 7 | Todo perdido y decisión final |  |  |
+| 8 | Clímax y resolución |  |  |
+`,
+    },
+    {
+      id: "paradigma",
+      label: "Paradigma en tres actos (Syd Field)",
+      contents: `---
+title: "{{title}}"
+estado: escaleta
+---
+
+> El paradigma de Syd Field (*Screenplay*, 1979). Las páginas son de un guion de
+> 110: sirven para ver si el segundo acto se está descolgando.
+
+## Acto I — Planteamiento (pp. 1–30)
+
+**Detonante.**
+
+**Primer nudo de la trama (p. ~27).** Lo que empuja al protagonista al acto II.
+
+## Acto II — Confrontación (pp. 30–90)
+
+**Punto medio (p. ~55).**
+
+**Segundo nudo de la trama (p. ~85).**
+
+## Acto III — Resolución (pp. 90–110)
+
+**Clímax.**
 `,
     },
   ],
