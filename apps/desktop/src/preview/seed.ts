@@ -65,6 +65,47 @@ lenta. Amelia contaba los segundos entre destello y destello.
     fechaEnvio: "2026-05-02",
     respuesta: "pendiente",
   });
+
+  await space(fs, "la-novela", "El faro de Amelia", "novela", async (dir) => {
+    await writeDocument(fs, joinPath(dir, CONTENT_DIR, "01-parte-uno", "01-el-regreso.md"), {
+      frontmatterRaw: `---
+title: El regreso
+estado: borrador
+sinopsis: "Amelia vuelve al faro once años después, con la carta sin abrir."
+pov: Amelia
+---
+`,
+      body: `El camino al faro seguía siendo de tierra. Amelia lo recordaba más corto, o más
+ancho, o de alguna manera menos empinado; recordaba, sobre todo, hacerlo de la
+mano de alguien.
+
+La carta llevaba once días en el bolsillo de su abrigo y ella no la había
+abierto. Sabía la letra, y con eso le bastaba para saber que abrirla iba a
+cambiarle algo.
+`,
+    });
+    await writeDocument(fs, joinPath(dir, CONTENT_DIR, "01-parte-uno", "02-la-carta.md"), {
+      frontmatterRaw: `---
+title: La carta
+estado: idea
+sinopsis: "Qué decía la carta, y por qué llegó once años tarde."
+pov: Amelia
+---
+`,
+      body: "Pendiente de escribir.\n",
+    });
+  });
+
+  const novela = {
+    dir: joinPath(PREVIEW_LIBRARY, "la-novela"),
+    manifest: manifestOf("El faro de Amelia", "novela"),
+  };
+  await addCollectionEntry(fs, novela, "personajes", "amelia", {
+    nombre: "Amelia",
+    quiere: "Saber por qué se fue su madre sin decir nada",
+    teme: "Que la respuesta la deje igual que estaba",
+    arco: "De no abrir la carta a leerla en voz alta",
+  });
 }
 
 /** Crea un espacio con su andamio, sus plantillas y sus colecciones. */
@@ -77,11 +118,15 @@ async function space(
 ): Promise<void> {
   const dir = joinPath(PREVIEW_LIBRARY, folder);
   const bp = getBlueprint(blueprint);
+  // Igual que al crear desde la app: la primera forma es la de por defecto.
+  const shape = bp.manuscript?.shapes?.[0];
+  const scaffold = shape?.scaffold ?? bp.scaffold;
   const project = await createProject(fs, dir, {
     name,
     blueprint,
     starterDocument: bp.starterDocument,
-    ...(bp.scaffold ? { scaffold: bp.scaffold } : {}),
+    ...(scaffold ? { scaffold } : {}),
+    ...(shape ? { target: shape.target } : {}),
   });
   await seedTemplates(fs, project, bp.templates);
   for (const collection of bp.collections) {

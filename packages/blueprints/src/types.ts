@@ -165,5 +165,13 @@ export interface BlueprintDef {
    * olvidar los datos que necesita. El panel de colecciones sale, igual, de que
    * `collections` no esté vacío.
    */
-  manuscript?: { defaultTarget: number };
+  manuscript?: {
+    defaultTarget: number;
+    /**
+     * Formas con las que puede nacer la obra: es lo único que distingue una
+     * novela corta de una larga (RFC-0003 §3). Se elige al crear el espacio y
+     * fija la meta y las carpetas iniciales; después todo se puede cambiar.
+     */
+    shapes?: { id: string; label: string; target: number; scaffold: string[] }[];
+  };
 }

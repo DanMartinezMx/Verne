@@ -9,6 +9,7 @@ import {
   analyzeInline,
   analyzeText,
   applyTemplate,
+  compileManuscript,
   CONTENT_DIR,
   convertFolderToProject,
   createFolder,
@@ -44,6 +45,7 @@ import {
   writeDocument,
   type BlueprintId,
   type CollectionEntry,
+  type CompiledManuscript,
   type DocumentMeta,
   type Project,
   type QualityReport,
@@ -66,6 +68,7 @@ import {
 } from "react";
 import { CollectionPanel } from "./CollectionPanel.js";
 import { DocHeader } from "./DocHeader.js";
+import { ManuscriptPanel } from "./ManuscriptPanel.js";
 import { ExportPanel } from "./ExportPanel.js";
 import { HistoryPanel } from "./HistoryPanel.js";
 import { MarkdownEditor } from "./MarkdownEditor.js";
@@ -131,7 +134,7 @@ interface OpenDoc {
 }
 
 type SaveState = "saved" | "dirty" | "saving";
-type View = "doc" | "colecciones" | "papelera" | "exportar" | "calidad" | "historial";
+type View = "doc" | "colecciones" | "manuscrito" | "papelera" | "exportar" | "calidad" | "historial";
 
 export function App() {
   const [project, setProject] = useState<Project | null>(null);
@@ -143,6 +146,8 @@ export function App() {
   const [collectionEntries, setCollectionEntries] = useState<Record<string, CollectionEntry[]>>({});
   /** Plantillas leídas de `plantillas/`: del disco, no del código. */
   const [templates, setTemplates] = useState<Template[]>([]);
+  /** La obra compilada, solo en los espacios que son una obra larga. */
+  const [compiled, setCompiled] = useState<CompiledManuscript | null>(null);
   const [trashEntries, setTrashEntries] = useState<TrashEntry[]>([]);
   const [searchResults, setSearchResults] = useState<SearchResult[] | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -436,18 +441,23 @@ export function App() {
     }
   }
 
-  async function handleCreateProject(name: string, blueprintId: BlueprintId) {
+  async function handleCreateProject(name: string, blueprintId: BlueprintId, shapeId?: string) {
     try {
-      const dir = await pickDirectory("Elige una carpeta (vacía) para el proyecto");
+      const dir = await pickDirectory("Elige una carpeta (vacía) para el espacio");
       if (dir === null) return;
       const bp = getBlueprint(blueprintId);
       const options = seedOptions(bp);
+      // La forma elegida (novela corta o completa) fija la meta y las carpetas.
+      const shapes = bp.manuscript?.shapes;
+      const shape = shapes ? (shapes.find((s) => s.id === shapeId) ?? shapes[0]) : undefined;
+      const scaffold = shape?.scaffold ?? bp.scaffold;
       const project = await createProject(hostFs, dir, {
         name,
         blueprint: blueprintId,
         starterDocument: bp.starterDocument,
-        ...(bp.scaffold ? { scaffold: bp.scaffold } : {}),
+        ...(scaffold ? { scaffold } : {}),
         ...(options ? { options } : {}),
+        ...(shape ? { target: shape.target } : {}),
       });
       await ensureSpaceCollections(project, bp);
       await loadProject(project);
@@ -720,7 +730,42 @@ export function App() {
 
   async function switchView(v: View) {
     await saveNow();
+    if (v === "manuscrito") await refreshManuscript();
     setView(v);
+  }
+
+  /** Recompone el manuscrito leyendo el árbol: el avance sale de los archivos. */
+  async function refreshManuscript() {
+    const p = projectRef.current;
+    if (!p) return;
+    try {
+      setCompiled(await compileManuscript(hostFs, p));
+    } catch (e) {
+      reportError(e);
+    }
+  }
+
+  async function handleChangeTarget(target: number) {
+    const p = projectRef.current;
+    if (!p) return;
+    try {
+      setProject(await updateProjectManifest(hostFs, p, { target }));
+    } catch (e) {
+      reportError(e);
+    }
+  }
+
+  /** Exporta la obra entera como un solo Markdown. */
+  async function handleCompile() {
+    const p = projectRef.current;
+    if (!p) return;
+    try {
+      const manuscript = await compileManuscript(hostFs, p);
+      setCompiled(manuscript);
+      await handleSaveExportFile(`${slugify(p.manifest.name) || "manuscrito"}.md`, manuscript.markdown);
+    } catch (e) {
+      reportError(e);
+    }
   }
 
   // ── Exportación y calidad ─────────────────────────────────────────────
@@ -885,6 +930,10 @@ export function App() {
   const collectionsLabel =
     blueprint.collections.length === 1 ? blueprint.collections[0]!.label : "Fichas";
   const isDaily = blueprint.naming === "fecha";
+  // El panel Manuscrito existe si el espacio es UNA obra larga, no un conjunto
+  // de piezas: lo declara `manuscript` (RFC-0003 §2).
+  const manuscript = blueprint.manuscript;
+  const target = project.manifest.target ?? manuscript?.defaultTarget ?? 0;
 
   return (
     <div
@@ -907,26 +956,39 @@ export function App() {
           </p>
         )}
 
-        {hasCollections && (
+        {(hasCollections || manuscript) && (
           <div className="view-tabs" role="tablist">
             <button
               type="button"
               role="tab"
-              aria-selected={view !== "colecciones"}
-              className={view !== "colecciones" ? "tab tab--active" : "tab"}
+              aria-selected={view === "doc"}
+              className={view === "doc" ? "tab tab--active" : "tab"}
               onClick={() => void switchView("doc")}
             >
               {blueprint.vocabulary.documentPlural}
             </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={view === "colecciones"}
-              className={view === "colecciones" ? "tab tab--active" : "tab"}
-              onClick={() => void switchView("colecciones")}
-            >
-              {collectionsLabel}
-            </button>
+            {manuscript && (
+              <button
+                type="button"
+                role="tab"
+                aria-selected={view === "manuscrito"}
+                className={view === "manuscrito" ? "tab tab--active" : "tab"}
+                onClick={() => void switchView("manuscrito")}
+              >
+                Manuscrito
+              </button>
+            )}
+            {hasCollections && (
+              <button
+                type="button"
+                role="tab"
+                aria-selected={view === "colecciones"}
+                className={view === "colecciones" ? "tab tab--active" : "tab"}
+                onClick={() => void switchView("colecciones")}
+              >
+                {collectionsLabel}
+              </button>
+            )}
           </div>
         )}
 
@@ -1018,7 +1080,15 @@ export function App() {
       <main className="main">
         {updateBanner}
         {error && <p className="error">{error}</p>}
-        {view === "colecciones" && hasCollections ? (
+        {view === "manuscrito" && manuscript && compiled ? (
+          <ManuscriptPanel
+            compiled={compiled}
+            target={target}
+            onChangeTarget={(next) => void handleChangeTarget(next)}
+            onSelect={(node) => void handleSelect(node)}
+            onCompile={() => void handleCompile()}
+          />
+        ) : view === "colecciones" && hasCollections ? (
           <CollectionPanel
             collections={blueprint.collections}
             entries={collectionEntries}
@@ -1361,7 +1431,7 @@ function Welcome({
   recents: RecentProject[];
   onOpenRecent: (recent: RecentProject) => void;
   onOpen: () => void;
-  onCreate: (name: string, blueprint: BlueprintId) => void;
+  onCreate: (name: string, blueprint: BlueprintId, shapeId?: string) => void;
   error: string;
   banner: ReactNode;
   appVersion: string;
@@ -1372,7 +1442,9 @@ function Welcome({
   onCancelConvert: () => void;
 }) {
   const [name, setName] = useState("");
+  const [shape, setShape] = useState("");
   const [blueprint, setBlueprint] = useState<BlueprintId>("blog");
+  const shapes = getBlueprint(blueprint).manuscript?.shapes;
 
   return (
     <main className="welcome">
@@ -1405,11 +1477,11 @@ function Welcome({
         </section>
       )}
       <section className="card">
-        <h2>Crear un proyecto</h2>
+        <h2>Crear un espacio</h2>
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            if (name.trim()) onCreate(name.trim(), blueprint);
+            if (name.trim()) onCreate(name.trim(), blueprint, shape || undefined);
           }}
         >
           <label>
@@ -1422,10 +1494,13 @@ function Welcome({
             />
           </label>
           <label>
-            Tipo de proyecto
+            Tipo de espacio
             <select
               value={blueprint}
-              onChange={(e) => setBlueprint(e.target.value as BlueprintId)}
+              onChange={(e) => {
+                setBlueprint(e.target.value as BlueprintId);
+                setShape("");
+              }}
             >
               {listBlueprints().map((bp) => (
                 <option key={bp.id} value={bp.id}>
@@ -1434,6 +1509,20 @@ function Welcome({
               ))}
             </select>
           </label>
+          {/* Solo los espacios que son UNA obra larga ofrecen forma: es lo que
+              distingue una novela corta de una completa. */}
+          {shapes && (
+            <label>
+              Extensión
+              <select value={shape} onChange={(e) => setShape(e.target.value)}>
+                {shapes.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
           <button type="submit">Elegir carpeta y crear</button>
         </form>
       </section>

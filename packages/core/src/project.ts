@@ -43,6 +43,8 @@ export interface CreateProjectOptions {
    * ejemplo). Los sugiere el espacio; a partir de aquí son del proyecto.
    */
   options?: Record<string, string[]>;
+  /** Meta de palabras de la obra (novela). */
+  target?: number;
 }
 
 export async function createProject(
@@ -60,6 +62,7 @@ export async function createProject(
     language: options.language ?? "es",
     createdAt: new Date().toISOString(),
     ...(options.options ? { options: options.options } : {}),
+    ...(options.target ? { target: options.target } : {}),
   };
   for (const sub of [CONTENT_DIR, RESOURCES_DIR, EXPORT_DIR, INTERNAL_DIR]) {
     await fs.mkdir(joinPath(dir, sub));
@@ -117,6 +120,7 @@ export async function convertFolderToProject(
     language: options.language ?? "es",
     createdAt: new Date().toISOString(),
     ...(options.options ? { options: options.options } : {}),
+    ...(options.target ? { target: options.target } : {}),
   };
   await fs.writeTextFile(joinPath(dir, MANIFEST_FILE), serializeManifest(manifest));
   return { dir, manifest };
@@ -165,7 +169,7 @@ export async function openProject(fs: VerneFs, dir: string): Promise<Project> {
 export async function updateProjectManifest(
   fs: VerneFs,
   project: Project,
-  changes: Partial<Pick<ProjectManifest, "name" | "author" | "language" | "options">>,
+  changes: Partial<Pick<ProjectManifest, "name" | "author" | "language" | "options" | "target">>,
 ): Promise<Project> {
   const path = joinPath(project.dir, MANIFEST_FILE);
   const doc = parseDocument(await fs.readTextFile(path));

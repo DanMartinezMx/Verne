@@ -30,8 +30,9 @@ export async function initHost(): Promise<void> {
 export async function pickDirectory(title: string): Promise<string | null> {
   if (isPreview) {
     const answer = window.prompt(
-      `${title}\n\n(Previsualización en navegador: escribe una ruta de la biblioteca de demo)`,
-      joinPath(PREVIEW_LIBRARY, "mi-blog"),
+      `${title}\n\nPrevisualización en navegador. Espacios de demo:\n` +
+        `${PREVIEW_LIBRARY}/mi-blog\n${PREVIEW_LIBRARY}/cuentos\n${PREVIEW_LIBRARY}/la-novela`,
+      joinPath(PREVIEW_LIBRARY, "la-novela"),
     );
     return answer?.trim() ? answer.trim() : null;
   }

@@ -4,7 +4,14 @@ import { VerneError } from "./errors.js";
 /** Versión del formato VPF que esta versión de core escribe y entiende. */
 export const VPF_VERSION = "0.1";
 
-export const BLUEPRINT_IDS = ["blog", "cuento", "guion", "podcast", "diario"] as const;
+export const BLUEPRINT_IDS = [
+  "blog",
+  "cuento",
+  "novela",
+  "guion",
+  "podcast",
+  "diario",
+] as const;
 export type BlueprintId = (typeof BLUEPRINT_IDS)[number];
 
 /** ¿Es un tipo de espacio que esta versión conoce? */
@@ -40,6 +47,12 @@ export interface ProjectManifest {
    * categoría mal escrita que rompe el sitio destino.
    */
   options?: Record<string, string[]>;
+  /**
+   * Meta de palabras de la obra, para los espacios que son una sola obra larga
+   * (novela). Es lo único que distingue una novela corta de una larga
+   * (RFC-0003 §3), y por eso es un campo y no otro tipo de espacio.
+   */
+  target?: number;
 }
 
 export function parseManifest(text: string): ProjectManifest {
@@ -84,6 +97,9 @@ export function parseManifest(text: string): ProjectManifest {
   }
   const options = readOptions(m["options"]);
   if (options) manifest.options = options;
+  if (typeof m["target"] === "number" && Number.isFinite(m["target"]) && m["target"] > 0) {
+    manifest.target = m["target"];
+  }
   return manifest;
 }
 

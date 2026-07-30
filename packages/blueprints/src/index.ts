@@ -4,6 +4,7 @@ import { cuentoBlueprint } from "./cuento.js";
 import { desconocidoBlueprint } from "./desconocido.js";
 import { diarioBlueprint } from "./diario.js";
 import { guionBlueprint } from "./guion.js";
+import { novelaBlueprint } from "./novela.js";
 import { podcastBlueprint } from "./podcast.js";
 import type { BlueprintDef } from "./types.js";
 
@@ -12,6 +13,7 @@ export { cuentoBlueprint } from "./cuento.js";
 export { desconocidoBlueprint } from "./desconocido.js";
 export { diarioBlueprint } from "./diario.js";
 export { guionBlueprint } from "./guion.js";
+export { novelaBlueprint } from "./novela.js";
 export { podcastBlueprint } from "./podcast.js";
 export { collectionSchemaYaml } from "./schema.js";
 export type {
@@ -28,6 +30,7 @@ export type {
 const BLUEPRINTS: Record<BlueprintId, BlueprintDef> = {
   blog: blogBlueprint,
   cuento: cuentoBlueprint,
+  novela: novelaBlueprint,
   guion: guionBlueprint,
   podcast: podcastBlueprint,
   diario: diarioBlueprint,

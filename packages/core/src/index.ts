@@ -16,6 +16,11 @@ export {
   type CollectionEntry,
 } from "./collections.js";
 export {
+  compileManuscript,
+  type CompiledManuscript,
+  type CompiledPart,
+} from "./compile.js";
+export {
   countWords,
   joinDocument,
   listSnapshots,

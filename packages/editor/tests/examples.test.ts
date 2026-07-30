@@ -11,6 +11,7 @@ import { markdownToDoc, normalizeMarkdown } from "../src/markdown.js";
 const EXAMPLES = [
   "../../../examples/blog-demo/contenido/hola-mundo.md",
   "../../../examples/cuentos-demo/contenido/01-en-curso/el-faro.md",
+  "../../../examples/novela-demo/contenido/01-parte-uno/01-el-regreso.md",
 ];
 
 describe("pipeline completo con los proyectos de ejemplo", () => {

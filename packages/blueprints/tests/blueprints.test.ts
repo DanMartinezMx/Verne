@@ -184,6 +184,48 @@ describe("definiciones de Blueprint", () => {
     });
   });
 
+  /** RFC-0003 §3: un solo espacio novela, parametrizado por meta de palabras. */
+  describe("el espacio novela", () => {
+    const bp = getBlueprint("novela");
+
+    it("es UNA obra larga, así que declara manuscrito", () => {
+      expect(bp.manuscript).toBeDefined();
+      expect(bp.manuscript?.defaultTarget).toBeGreaterThan(0);
+    });
+
+    it("ofrece novela corta y completa como formas del mismo espacio, no como tipos", () => {
+      const shapes = bp.manuscript?.shapes ?? [];
+      expect(shapes.length).toBeGreaterThan(1);
+      const ids = shapes.map((s) => s.id);
+      expect(new Set(ids).size).toBe(ids.length);
+      for (const shape of shapes) {
+        expect(shape.target).toBeGreaterThan(0);
+        expect(shape.scaffold.length).toBeGreaterThan(0);
+      }
+      // La corta tiene menos meta que la completa: si no, no serían distintas.
+      const corta = shapes.find((s) => s.id === "corta");
+      const larga = shapes.find((s) => s.id === "larga");
+      expect(corta!.target).toBeLessThan(larga!.target);
+      // Y no hay un espacio "novela-corta": es el mismo con otra meta.
+      expect(BLUEPRINT_IDS as readonly string[]).not.toContain("novela-corta");
+    });
+
+    it("tiene las fichas que una novela necesita y el blog no", () => {
+      expect(bp.collections.map((c) => c.name)).toEqual([
+        "personajes",
+        "localizaciones",
+        "tramas",
+      ]);
+      expect(getBlueprint("blog").collections).toEqual([]);
+      // Y el blog no es una obra larga: nada de compilar entradas en un libro.
+      expect(getBlueprint("blog").manuscript).toBeUndefined();
+    });
+
+    it("se lee en serif, no en la tipografía de un blog", () => {
+      expect(bp.theme.editorFont).toBe("serif");
+    });
+  });
+
   // D15: un tipo desconocido cae en el espacio de reserva en lugar de romper.
   it("un tipo desconocido resuelve al espacio de reserva, que no es creable", () => {
     const fallback = getBlueprint("novela-de-2032");
