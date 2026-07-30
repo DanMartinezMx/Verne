@@ -34,8 +34,9 @@ export {
   type DocumentMeta,
 } from "./documents-index.js";
 export { VerneError, type VerneErrorCode } from "./errors.js";
-export { createFolder, moveEntry, renameEntry, sanitizeName } from "./organize.js";
+export { createFolder, moveEntry, renameEntry } from "./organize.js";
 export {
+  DEFAULT_TAGS_FIELD,
   getFrontmatterFields,
   readTags,
   withFrontmatterFields,
@@ -59,9 +60,10 @@ export {
   trashDocument,
   type TrashEntry,
 } from "./trash.js";
-export { joinPath, type FsEntry, type VerneFs } from "./fs.js";
+export { joinPath, sanitizeName, type FsEntry, type VerneFs } from "./fs.js";
 export {
   BLUEPRINT_IDS,
+  isKnownBlueprint,
   parseManifest,
   serializeManifest,
   VPF_VERSION,

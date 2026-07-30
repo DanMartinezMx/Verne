@@ -236,9 +236,9 @@ Cada pieza suspendida tiene un disparador objetivo. Sin disparador, no se constr
 | CRDT + sync propia (D6, fases 5) | Exista colaboración real entre dos personas en un proyecto, o el modo git/Syncthing genere pérdidas documentadas que el diseño actual no pueda evitar |
 | Sistema de plugins + sandbox (D7) | Terceros pidan extender Verne de formas concretas ≥3 veces, o el propio maintainer sienta la fricción de no poder instalar/quitar módulos |
 | Rust en el núcleo (D1) | Un cuello de botella medido (índice, búsqueda, exportación) que TS no alcance tras optimizar, o el salto a móvil/web exija compartir kernel compilado |
-| Más plataformas | Usuarios reales pidiendo macOS/Linux (barato, primero) — web/móvil solo tras v0.3 |
+| Más plataformas | Usuarios reales pidiendo macOS/Linux (barato, primero) — web/móvil solo tras v0.3. **Móvil evaluado y aplazado** en RFC-0003 §8, con lo aprendido registrado |
 | Gobernanza formal (§18) | Un segundo maintainer sostenido en el tiempo |
-| Blueprint Novela | El maintainer (o una comunidad activa) lo necesite de verdad; los cuentos son el banco de pruebas de la ficción hasta entonces |
+| ~~Blueprint Novela~~ | **Disparador cumplido** (RFC-0003 §3, 2026-07-30): el maintainer escribe novela corta y larga en Verne. Un solo Blueprint `novela` parametrizado por meta de palabras |
 
 ---
 

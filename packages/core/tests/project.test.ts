@@ -7,6 +7,7 @@ import {
   convertFolderToProject,
   createProject,
   INTERNAL_DIR,
+  isKnownBlueprint,
   joinPath,
   openProject,
   parseManifest,
@@ -55,6 +56,23 @@ describe("createProject / openProject", () => {
     expect(() => parseManifest("vpf: '99.0'\nname: X\nblueprint: blog\n")).toThrow(
       /VPF 99\.0/,
     );
+  });
+
+  // RFC-0003 §7.1 (D15): abrir el formato no es dejar de validarlo.
+  it("preserva un tipo de espacio desconocido en lugar de rechazarlo", () => {
+    const manifest = parseManifest("vpf: '0.1'\nname: X\nblueprint: novela-de-2032\n");
+    expect(manifest.blueprint).toBe("novela-de-2032");
+    expect(isKnownBlueprint(manifest.blueprint)).toBe(false);
+    expect(isKnownBlueprint("blog")).toBe(true);
+  });
+
+  it("sigue rechazando un manifiesto roto", () => {
+    // Sin blueprint, con blueprint vacío, sin name y sin vpf: todo sigue siendo error.
+    expect(() => parseManifest("vpf: '0.1'\nname: X\n")).toThrow(VerneError);
+    expect(() => parseManifest("vpf: '0.1'\nname: X\nblueprint: '  '\n")).toThrow(VerneError);
+    expect(() => parseManifest("vpf: '0.1'\nblueprint: blog\n")).toThrow(VerneError);
+    expect(() => parseManifest("name: X\nblueprint: blog\n")).toThrow(VerneError);
+    expect(() => parseManifest("esto: no es: yaml válido:\n  - [\n")).toThrow(VerneError);
   });
 });
 

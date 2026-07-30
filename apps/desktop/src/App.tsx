@@ -1,5 +1,10 @@
 import { open, save } from "@tauri-apps/plugin-dialog";
-import { getBlueprint, listBlueprints, type BlueprintDef } from "@verne/blueprints";
+import {
+  collectionSchemaYaml,
+  getBlueprint,
+  listBlueprints,
+  type BlueprintDef,
+} from "@verne/blueprints";
 import {
   addCollectionEntry,
   analyzeInline,
@@ -7,9 +12,12 @@ import {
   CONTENT_DIR,
   convertFolderToProject,
   createFolder,
+  ensureCollection,
   EXPORT_DIR,
   countWords,
   createProject,
+  getFrontmatterFields,
+  isKnownBlueprint,
   joinPath,
   listCollection,
   listSnapshots,
@@ -44,9 +52,16 @@ import {
 } from "@verne/core";
 import type { FormatState, ProseEditorHandle } from "@verne/editor";
 import { ProjectTree, type FolderOption, type TreeDecoration } from "@verne/ui";
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from "react";
+import { CollectionPanel } from "./CollectionPanel.js";
 import { DocHeader } from "./DocHeader.js";
-import { EnviosPanel } from "./EnviosPanel.js";
 import { ExportPanel } from "./ExportPanel.js";
 import { HistoryPanel } from "./HistoryPanel.js";
 import { MarkdownEditor } from "./MarkdownEditor.js";
@@ -69,7 +84,8 @@ const RECENTS_MAX = 8;
 interface RecentProject {
   dir: string;
   name: string;
-  blueprint: BlueprintId;
+  /** Puede ser un tipo que esta versión no conozca (RFC-0003 §7.1). */
+  blueprint: string;
   lastOpened: string;
 }
 
@@ -111,7 +127,7 @@ interface OpenDoc {
 }
 
 type SaveState = "saved" | "dirty" | "saving";
-type View = "doc" | "envios" | "papelera" | "exportar" | "calidad" | "historial";
+type View = "doc" | "colecciones" | "papelera" | "exportar" | "calidad" | "historial";
 
 export function App() {
   const [project, setProject] = useState<Project | null>(null);
@@ -119,11 +135,16 @@ export function App() {
   const [docsMeta, setDocsMeta] = useState<DocumentMeta[]>([]);
   const [doc, setDoc] = useState<OpenDoc | null>(null);
   const [view, setView] = useState<View>("doc");
-  const [envios, setEnvios] = useState<CollectionEntry[]>([]);
+  /** Fichas por nombre de colección; el espacio decide qué colecciones hay. */
+  const [collectionEntries, setCollectionEntries] = useState<Record<string, CollectionEntry[]>>({});
   const [trashEntries, setTrashEntries] = useState<TrashEntry[]>([]);
   const [searchResults, setSearchResults] = useState<SearchResult[] | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [exportBody, setExportBody] = useState("");
+  /** Documento completo a exportar: el perfil "cms" necesita su frontmatter. */
+  const [exportParts, setExportParts] = useState<{ frontmatterRaw: string | null; body: string }>({
+    frontmatterRaw: null,
+    body: "",
+  });
   const [qualityReport, setQualityReport] = useState<QualityReport | null>(null);
   const [history, setHistory] = useState<Snapshot[]>([]);
   const [historySelected, setHistorySelected] = useState<Snapshot | null>(null);
@@ -161,7 +182,8 @@ export function App() {
   // ── Guardado ──────────────────────────────────────────────────────────
 
   const refreshDocMeta = useCallback(async (path: string, name: string) => {
-    const meta = await readDocumentMeta(tauriFs, path, name);
+    const bp = projectRef.current ? getBlueprint(projectRef.current.manifest.blueprint) : null;
+    const meta = await readDocumentMeta(tauriFs, path, name, bp?.tagsField);
     setDocsMeta((prev) => {
       const rest = prev.filter((m) => m.path !== path);
       return [...rest, meta];
@@ -291,11 +313,15 @@ export function App() {
   // ── Carga de proyecto y datos ─────────────────────────────────────────
 
   async function refreshProjectData(p: Project) {
-    setTree(await readProjectTree(tauriFs, p));
-    setDocsMeta(await readProjectDocuments(tauriFs, p));
-    setTrashEntries(await listTrash(tauriFs, p));
     const bp = getBlueprint(p.manifest.blueprint);
-    setEnvios(bp.submissions ? await listCollection(tauriFs, p, bp.submissions.collection) : []);
+    setTree(await readProjectTree(tauriFs, p));
+    setDocsMeta(await readProjectDocuments(tauriFs, p, bp.tagsField));
+    setTrashEntries(await listTrash(tauriFs, p));
+    const entries: Record<string, CollectionEntry[]> = {};
+    for (const collection of bp.collections) {
+      entries[collection.name] = await listCollection(tauriFs, p, collection.name);
+    }
+    setCollectionEntries(entries);
   }
 
   async function loadProject(p: Project) {
@@ -391,6 +417,7 @@ export function App() {
     if (!dir) return;
     try {
       const project = await convertFolderToProject(tauriFs, dir, { name, blueprint: blueprintId });
+      await ensureSpaceCollections(project, getBlueprint(blueprintId));
       setConvertDir(null);
       await loadProject(project);
     } catch (e) {
@@ -406,15 +433,23 @@ export function App() {
       });
       if (typeof dir !== "string") return;
       const bp = getBlueprint(blueprintId);
-      await loadProject(
-        await createProject(tauriFs, dir, {
-          name,
-          blueprint: blueprintId,
-          starterDocument: bp.starterDocument,
-        }),
-      );
+      const project = await createProject(tauriFs, dir, {
+        name,
+        blueprint: blueprintId,
+        starterDocument: bp.starterDocument,
+        ...(bp.scaffold ? { scaffold: bp.scaffold } : {}),
+      });
+      await ensureSpaceCollections(project, bp);
+      await loadProject(project);
     } catch (e) {
       reportError(e);
+    }
+  }
+
+  /** Crea las carpetas de colección del espacio con su `_schema.yaml` generado. */
+  async function ensureSpaceCollections(p: Project, bp: BlueprintDef) {
+    for (const collection of bp.collections) {
+      await ensureCollection(tauriFs, p, collection.name, collectionSchemaYaml(collection));
     }
   }
 
@@ -441,19 +476,16 @@ export function App() {
     if (!p || !blueprint) return;
     try {
       await saveNow();
-      // En un diario, el título por defecto es la fecha de hoy y el archivo
-      // se nombra con fecha ISO para que ordene cronológicamente.
-      const isDaily = blueprint.dailyNaming && rawTitle === "";
+      // En un diario (naming: "fecha"), el título por defecto es la fecha de hoy
+      // y el archivo se nombra con fecha ISO para que ordene cronológicamente.
+      const isDaily = blueprint.naming === "fecha" && rawTitle === "";
       const title = isDaily ? todayTitle(p.manifest.language) : rawTitle;
       const slug = (isDaily ? new Date().toISOString().slice(0, 10) : slugify(title)) || "sin-titulo";
       let path = joinPath(p.dir, CONTENT_DIR, `${slug}.md`);
       for (let n = 2; await tauriFs.exists(path); n++) {
         path = joinPath(p.dir, CONTENT_DIR, `${slug}-${n}.md`);
       }
-      await writeDocument(tauriFs, path, {
-        frontmatterRaw: `---\ntitle: ${yamlString(title)}\nestado: ${blueprint.initialState}\n---\n`,
-        body: "",
-      });
+      await writeDocument(tauriFs, path, newDocumentParts(blueprint, title));
       setTree(await readProjectTree(tauriFs, p));
       const name = path.split("/").pop()?.replace(/\.md$/, "") ?? slug;
       await refreshDocMeta(path, name);
@@ -537,6 +569,19 @@ export function App() {
     }
   }
 
+  /**
+   * Cambia el estado y, en la misma escritura, recalcula los campos que se
+   * derivan de él (el `draft` del blog). Solo se tocan al cambiar el estado: un
+   * `draft` que el usuario haya puesto a mano sobrevive a cualquier otro cambio.
+   */
+  async function changeEstado(estado: string) {
+    const derived: Record<string, unknown> = { estado };
+    for (const field of blueprint?.metaFields ?? []) {
+      if (field.derivedFromState) derived[field.key] = field.derivedFromState(estado);
+    }
+    await updateDocMetadata(derived);
+  }
+
   async function handleTrash() {
     const current = docRef.current;
     const p = projectRef.current;
@@ -577,33 +622,45 @@ export function App() {
       setSearchResults(null);
       return;
     }
-    setSearchResults(await searchProject(tauriFs, p, query));
+    setSearchResults(await searchProject(tauriFs, p, query, blueprint?.tagsField));
   }
 
-  async function handleAddEnvio(fields: Record<string, unknown>) {
+  async function reloadCollection(p: Project, name: string) {
+    const entries = await listCollection(tauriFs, p, name);
+    setCollectionEntries((prev) => ({ ...prev, [name]: entries }));
+  }
+
+  async function handleAddCollectionEntry(name: string, fields: Record<string, unknown>) {
     const p = projectRef.current;
-    if (!p || !blueprint?.submissions) return;
+    const def = blueprint?.collections.find((c) => c.name === name);
+    if (!p || !def) return;
     try {
-      const slug = slugify(`${String(fields["cuento"] ?? "")}-${String(fields["mercado"] ?? "")}`);
-      await addCollectionEntry(
-        tauriFs,
-        p,
-        blueprint.submissions.collection,
-        slug || "envio",
-        fields,
+      // El nombre del archivo sale de los dos primeros campos: legible en el
+      // explorador, que es de lo que va el formato.
+      const slug = slugify(
+        def.fields
+          .slice(0, 2)
+          .map((f) => String(fields[f.key] ?? ""))
+          .join("-"),
       );
-      setEnvios(await listCollection(tauriFs, p, blueprint.submissions.collection));
+      await ensureCollection(tauriFs, p, name, collectionSchemaYaml(def));
+      await addCollectionEntry(tauriFs, p, name, slug || "ficha", fields);
+      await reloadCollection(p, name);
     } catch (e) {
       reportError(e);
     }
   }
 
-  async function handleUpdateEnvio(path: string, changes: Record<string, unknown>) {
+  async function handleUpdateCollectionEntry(
+    name: string,
+    path: string,
+    changes: Record<string, unknown>,
+  ) {
     const p = projectRef.current;
-    if (!p || !blueprint?.submissions) return;
+    if (!p) return;
     try {
       await updateCollectionEntry(tauriFs, path, changes);
-      setEnvios(await listCollection(tauriFs, p, blueprint.submissions.collection));
+      await reloadCollection(p, name);
     } catch (e) {
       reportError(e);
     }
@@ -622,7 +679,7 @@ export function App() {
     try {
       await saveNow();
       const parts = await readDocument(tauriFs, current.node.path);
-      setExportBody(parts.body);
+      setExportParts(parts);
       setView("exportar");
     } catch (e) {
       reportError(e);
@@ -775,21 +832,47 @@ export function App() {
   ];
   collectFolderOptions(tree, 0, folderOptions);
 
+  // El estilo del espacio: variables CSS sobre el tema claro/oscuro, que es el
+  // mecanismo que la app ya usaba. `data-space` deja engancharle reglas.
+  const spaceStyle = {
+    "--space-accent": blueprint.theme.accent,
+    "--space-accent-dark": blueprint.theme.accentDark,
+  } as CSSProperties;
+  // La pestaña de fichas existe si el espacio declara colecciones; su etiqueta es
+  // la de la colección cuando hay una sola ("Envíos"), genérica cuando hay varias.
+  const hasCollections = blueprint.collections.length > 0;
+  const collectionsLabel =
+    blueprint.collections.length === 1 ? blueprint.collections[0]!.label : "Fichas";
+  const isDaily = blueprint.naming === "fecha";
+
   return (
-    <div className={`workspace${focusMode ? " workspace--focus" : ""}`}>
+    <div
+      className={`workspace${focusMode ? " workspace--focus" : ""}`}
+      data-space={blueprint.id}
+      data-editor-font={blueprint.theme.editorFont}
+      style={spaceStyle}
+    >
       <aside className="sidebar">
         <header className="sidebar-header">
           <h1 className="project-name">{project.manifest.name}</h1>
           <span className="badge">{blueprint.label}</span>
         </header>
 
-        {blueprint.submissions && (
+        {!isKnownBlueprint(project.manifest.blueprint) && (
+          <p className="notice">
+            Este proyecto es de tipo <code>{project.manifest.blueprint}</code>, que esta versión
+            de Verne no conoce. Puedes leerlo y editarlo con las herramientas básicas; su tipo se
+            conserva intacto en <code>verne.yaml</code>.
+          </p>
+        )}
+
+        {hasCollections && (
           <div className="view-tabs" role="tablist">
             <button
               type="button"
               role="tab"
-              aria-selected={view !== "envios"}
-              className={view !== "envios" ? "tab tab--active" : "tab"}
+              aria-selected={view !== "colecciones"}
+              className={view !== "colecciones" ? "tab tab--active" : "tab"}
               onClick={() => void switchView("doc")}
             >
               {blueprint.vocabulary.documentPlural}
@@ -797,22 +880,20 @@ export function App() {
             <button
               type="button"
               role="tab"
-              aria-selected={view === "envios"}
-              className={view === "envios" ? "tab tab--active" : "tab"}
-              onClick={() => void switchView("envios")}
+              aria-selected={view === "colecciones"}
+              className={view === "colecciones" ? "tab tab--active" : "tab"}
+              onClick={() => void switchView("colecciones")}
             >
-              Envíos
+              {collectionsLabel}
             </button>
           </div>
         )}
 
         <NewDocumentForm
           placeholder={
-            blueprint.dailyNaming
-              ? todayTitle(project.manifest.language)
-              : blueprint.vocabulary.newDocumentPlaceholder
+            isDaily ? todayTitle(project.manifest.language) : blueprint.vocabulary.newDocumentPlaceholder
           }
-          allowEmpty={blueprint.dailyNaming ?? false}
+          allowEmpty={isDaily}
           onCreate={handleNewDocument}
         />
 
@@ -894,13 +975,15 @@ export function App() {
       <main className="main">
         {updateBanner}
         {error && <p className="error">{error}</p>}
-        {view === "envios" && blueprint.submissions ? (
-          <EnviosPanel
-            submissions={blueprint.submissions}
-            entries={envios}
+        {view === "colecciones" && hasCollections ? (
+          <CollectionPanel
+            collections={blueprint.collections}
+            entries={collectionEntries}
             docs={docsMeta}
-            onAdd={(fields) => void handleAddEnvio(fields)}
-            onUpdate={(path, changes) => void handleUpdateEnvio(path, changes)}
+            onAdd={(name, fields) => void handleAddCollectionEntry(name, fields)}
+            onUpdate={(name, path, changes) =>
+              void handleUpdateCollectionEntry(name, path, changes)
+            }
           />
         ) : view === "papelera" ? (
           <TrashPanel entries={trashEntries} onRestore={(entry) => void handleRestore(entry)} />
@@ -924,7 +1007,8 @@ export function App() {
           <ExportPanel
             blueprint={blueprint}
             title={currentMeta?.title ?? doc.node.name}
-            body={exportBody}
+            body={exportParts.body}
+            frontmatterRaw={exportParts.frontmatterRaw}
             author={project.manifest.author ?? ""}
             language={project.manifest.language}
             onSaveAuthor={(author) => void handleSaveAuthor(author)}
@@ -940,13 +1024,15 @@ export function App() {
             <DocHeader
               title={currentMeta?.title ?? doc.node.name}
               estado={currentMeta?.estado ?? null}
-              tags={currentMeta?.tags ?? []}
               states={blueprint.states}
+              metaFields={blueprint.metaFields}
+              fields={getFrontmatterFields({
+                frontmatterRaw: doc.frontmatterRaw,
+                body: doc.body,
+              })}
               onChangeTitle={(title) => void updateDocMetadata({ title })}
-              onChangeEstado={(estado) => void updateDocMetadata({ estado })}
-              onChangeTags={(tags) =>
-                void updateDocMetadata({ tags: tags.length > 0 ? tags : undefined })
-              }
+              onChangeEstado={(estado) => void changeEstado(estado)}
+              onChangeField={(key, value) => void updateDocMetadata({ [key]: value })}
               onExport={() => void handleOpenExport()}
               onQuality={() => void handleOpenQuality()}
               onHistory={() => void handleOpenHistory()}
@@ -1241,7 +1327,7 @@ function Welcome({
                 <button type="button" className="recent" onClick={() => onOpenRecent(r)}>
                   <span className="recent-name">{r.name}</span>
                   <span className="recent-meta">
-                    <span className="badge">{getBlueprint(r.blueprint)?.label ?? r.blueprint}</span>
+                    <span className="badge">{getBlueprint(r.blueprint).label}</span>
                     <span className="recent-dir">{r.dir}</span>
                   </span>
                 </button>
@@ -1344,9 +1430,16 @@ function slugify(text: string): string {
     .slice(0, 60);
 }
 
-/** Escapa un valor para frontmatter YAML de forma segura y legible. */
-function yamlString(value: string): string {
-  return /^[\w áéíóúüñÁÉÍÓÚÜÑ.,;-]+$/.test(value) && !/^[\s-]/.test(value)
-    ? value
-    : JSON.stringify(value);
+/**
+ * Frontmatter de un documento nuevo en blanco: título, estado inicial y los
+ * campos que el espacio rellena solo (`autoOnCreate` y `derivedFromState`). Así
+ * una entrada de blog nace con su `createdAt` y su `draft` sin código de blog.
+ */
+function newDocumentParts(blueprint: BlueprintDef, title: string) {
+  const fields: Record<string, unknown> = { title, estado: blueprint.initialState };
+  for (const field of blueprint.metaFields) {
+    if (field.autoOnCreate && field.type === "date") fields[field.key] = new Date().toISOString();
+    if (field.derivedFromState) fields[field.key] = field.derivedFromState(blueprint.initialState);
+  }
+  return withFrontmatterFields({ frontmatterRaw: null, body: "" }, fields);
 }

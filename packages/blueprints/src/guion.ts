@@ -16,6 +16,56 @@ export const guionBlueprint: BlueprintDef = {
     { id: "terminado", label: "Terminado", color: "#10b981" },
   ],
   initialState: "idea",
+  // Monoespaciada: es la convención del formato, y hace que las escenas se lean
+  // como se leen en un guion de verdad.
+  theme: { accent: "#0891b2", accentDark: "#22d3ee", editorFont: "mono" },
+  exportProfiles: ["manuscrito-docx"],
+  metaFields: [],
+  collections: [
+    {
+      name: "personajes",
+      label: "Personajes",
+      description: "Quién es quién: lo mínimo para no contradecirte en la escena 40.",
+      fields: [
+        { key: "nombre", label: "Nombre", type: "string" },
+        { key: "quiere", label: "Qué quiere", type: "string" },
+        { key: "teme", label: "Qué teme", type: "string" },
+      ],
+    },
+  ],
+  templates: [
+    {
+      id: "escena",
+      label: "Escena",
+      contents: `---
+title: {{title}}
+estado: idea
+---
+
+## INT. LUGAR — DÍA
+
+Acción.
+
+**PERSONAJE**
+
+> Diálogo.
+`,
+    },
+    {
+      id: "escaleta",
+      label: "Escaleta de secuencia",
+      contents: `---
+title: {{title}}
+estado: escaleta
+---
+
+| # | Escena | Qué pasa | Qué cambia |
+|---|---|---|---|
+| 1 | INT. — DÍA |  |  |
+| 2 |  |  |  |
+`,
+    },
+  ],
   starterDocument: {
     fileName: "mi-primer-guion.md",
     contents: `---
@@ -33,8 +83,9 @@ Amelia mira por la ventana. La luz del faro entra y sale de la habitación.
 > Otra vez llegas tarde.
 
 Convención sugerida: encabezados \`##\` para las escenas (INT./EXT.), negrita para
-el personaje que habla y cita (\`>\`) para el diálogo y las acotaciones. El formato
-profesional de guion (Fountain, Final Draft) llegará como exportador.
+el personaje que habla y cita (\`>\`) para el diálogo y las acotaciones. Escribe
+\`INT. \` o \`EXT. \` al principio de una línea y Verne la convierte en escena. El
+formato profesional de guion (Fountain, Final Draft) llegará como exportador.
 `,
   },
 };

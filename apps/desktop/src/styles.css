@@ -399,13 +399,76 @@ button[type="submit"] {
 .tree-item-words { font-size: 0.72rem; color: var(--muted); }
 .sidebar-content { flex: 1; overflow-y: auto; }
 
+/* ── Identidad visual del espacio ─────────────────────────────────────────
+   El espacio aporta su acento como variable y aquí sustituye a --accent. Un
+   color por tema: el que se lee sobre blanco se apaga sobre negro. */
+.workspace[data-space] { --accent: var(--space-accent); }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .workspace[data-space] { --accent: var(--space-accent-dark); }
+}
+:root[data-theme="dark"] .workspace[data-space] { --accent: var(--space-accent-dark); }
+
+.workspace[data-editor-font="serif"] .ProseMirror {
+  font-family: Georgia, "Iowan Old Style", "Times New Roman", serif;
+}
+.workspace[data-editor-font="mono"] .ProseMirror {
+  font-family: "Cascadia Mono", Consolas, "SF Mono", ui-monospace, monospace;
+  font-size: 0.95rem;
+}
+
+/* Aviso de espacio de tipo desconocido (RFC-0003 §7.1) */
+.notice {
+  margin: 0 0.75rem 0.5rem;
+  padding: 0.5rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--accent) 7%, transparent);
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
+
 /* Cabecera del documento */
 .doc-header {
+  padding: 0.5rem 1.5rem;
+  border-bottom: 1px solid var(--border);
+}
+.doc-header-main {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  padding: 0.5rem 1.5rem;
-  border-bottom: 1px solid var(--border);
+}
+
+/* Campos de frontmatter declarados por el espacio */
+.doc-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.9rem;
+  margin-top: 0.5rem;
+}
+.doc-meta-field { display: grid; gap: 0.15rem; font-size: 0.72rem; color: var(--muted); }
+.doc-meta-field input[type="text"], .doc-meta-field input[type="date"], .doc-meta-field textarea {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--fg);
+  padding: 0.2rem 0.4rem;
+  font-size: 0.82rem;
+  min-width: 9rem;
+}
+.doc-meta-field textarea { min-width: 20rem; resize: vertical; }
+.doc-meta-field--check {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  align-self: end;
+}
+.doc-meta-field--derived output {
+  font-size: 0.82rem;
+  color: var(--fg);
+  padding: 0.2rem 0.4rem;
+  border: 1px dashed var(--border);
+  border-radius: 6px;
 }
 .doc-title {
   flex: 1;
@@ -431,36 +494,40 @@ button[type="submit"] {
 .doc-trash:hover { background: color-mix(in srgb, #dc2626 15%, transparent); }
 .workspace--focus .doc-header { display: none; }
 
-/* Panel de envíos */
-.envios { padding: 1.25rem 1.5rem; max-width: 60rem; }
-.envios h2 { margin-top: 0; }
-.envios-form {
-  display: grid;
-  grid-template-columns: 1fr 1fr auto auto;
+/* Panel de fichas (cualquier colección del espacio) */
+.collection { padding: 1.25rem 1.5rem; max-width: 60rem; }
+.collection h2 { margin-top: 0; }
+.collection-tabs { display: flex; gap: 0.35rem; margin-bottom: 0.75rem; }
+.collection-form {
+  display: flex;
+  flex-wrap: wrap;
   gap: 0.5rem;
   margin-bottom: 1rem;
 }
-.envios-form input, .envios-form select {
+.collection-form input, .collection-form select {
   border: 1px solid var(--border);
   border-radius: 6px;
   background: var(--bg);
+  color: var(--fg);
   padding: 0.35rem 0.5rem;
   font-size: 0.88rem;
-  min-width: 0;
+  min-width: 9rem;
+  flex: 1 1 9rem;
 }
-.envios-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
-.envios-table th {
+.collection-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+.collection-table th {
   text-align: left;
   font-size: 0.78rem;
   color: var(--muted);
   border-bottom: 1px solid var(--border);
   padding: 0.4rem 0.5rem;
 }
-.envios-table td { padding: 0.45rem 0.5rem; border-bottom: 1px solid var(--border); }
-.envios-table select {
+.collection-table td { padding: 0.45rem 0.5rem; border-bottom: 1px solid var(--border); }
+.collection-table select {
   border: 1px solid var(--border);
   border-radius: 6px;
   background: var(--bg);
+  color: var(--fg);
   padding: 0.2rem 0.35rem;
   font-size: 0.82rem;
 }

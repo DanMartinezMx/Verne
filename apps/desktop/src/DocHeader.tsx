@@ -1,31 +1,34 @@
-import type { WorkflowState } from "@verne/blueprints";
+import type { MetaFieldDef, WorkflowState } from "@verne/blueprints";
 import { useEffect, useState } from "react";
 
 interface DocHeaderProps {
   title: string;
   estado: string | null;
-  tags: string[];
   states: WorkflowState[];
+  /** Campos propios del espacio, además de título y estado. */
+  metaFields: MetaFieldDef[];
+  /** Frontmatter del documento abierto, para poblar esos campos. */
+  fields: Record<string, unknown>;
   onChangeTitle: (title: string) => void;
   onChangeEstado: (estado: string) => void;
-  onChangeTags: (tags: string[]) => void;
+  onChangeField: (key: string, value: unknown) => void;
   onExport: () => void;
   onQuality: () => void;
   onHistory: () => void;
   onTrash: () => void;
 }
 
-/** Metadatos del documento abierto: título, estado del flujo, etiquetas. */
+/**
+ * Metadatos del documento abierto. Título y estado son fijos (los necesita toda
+ * la app); el resto lo declara el espacio en `metaFields`, que es lo que permite
+ * al blog editar su `description` y su `image` sin código propio (RFC-0003 §5).
+ */
 export function DocHeader(props: DocHeaderProps) {
   const [title, setTitle] = useState(props.title);
-  const [tagsText, setTagsText] = useState(props.tags.join(", "));
 
-  // Re-sincroniza al cambiar de documento.
   useEffect(() => {
     setTitle(props.title);
-    setTagsText(props.tags.join(", "));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [props.title, props.tags.join(" ")]);
+  }, [props.title]);
 
   const currentState = props.states.find((s) => s.id === props.estado);
 
@@ -35,69 +38,177 @@ export function DocHeader(props: DocHeaderProps) {
     else setTitle(props.title);
   }
 
-  function commitTags() {
-    const tags = tagsText
+  return (
+    <div className="doc-header">
+      <div className="doc-header-main">
+        <input
+          className="doc-title"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          onBlur={commitTitle}
+          onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
+          aria-label="Título del documento"
+        />
+        <span
+          className="state-dot"
+          aria-hidden="true"
+          style={{ backgroundColor: currentState?.color ?? "transparent" }}
+        />
+        <select
+          className="doc-estado"
+          aria-label="Estado del documento"
+          value={props.estado ?? ""}
+          onChange={(e) => props.onChangeEstado(e.target.value)}
+        >
+          {!currentState && <option value="">Sin estado</option>}
+          {props.states.map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.label}
+            </option>
+          ))}
+        </select>
+        <button type="button" className="doc-export" onClick={props.onQuality}>
+          Calidad
+        </button>
+        <button type="button" className="doc-export" onClick={props.onHistory}>
+          Historial
+        </button>
+        <button type="button" className="doc-export" onClick={props.onExport}>
+          Exportar
+        </button>
+        <button
+          type="button"
+          className="doc-trash"
+          title="Mover a la papelera"
+          aria-label="Mover a la papelera"
+          onClick={props.onTrash}
+        >
+          🗑
+        </button>
+      </div>
+
+      {props.metaFields.length > 0 && (
+        <div className="doc-meta">
+          {props.metaFields.map((field) => (
+            <MetaField
+              key={field.key}
+              field={field}
+              value={props.fields[field.key]}
+              onChange={(value) => props.onChangeField(field.key, value)}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Un campo declarado. Los que se derivan del estado se muestran pero no se
+ * editan: quien los manda es el estado del documento.
+ */
+function MetaField({
+  field,
+  value,
+  onChange,
+}: {
+  field: MetaFieldDef;
+  value: unknown;
+  onChange: (value: unknown) => void;
+}) {
+  const [text, setText] = useState(() => toText(field, value));
+
+  // Re-sincroniza al cambiar de documento, o cuando el valor cambia por fuera
+  // (una derivación del estado, por ejemplo).
+  useEffect(() => {
+    setText(toText(field, value));
+  }, [field, value]);
+
+  if (field.derivedFromState) {
+    return (
+      <label className="doc-meta-field doc-meta-field--derived">
+        <span>{field.label}</span>
+        <output title="Lo decide el estado del documento">{value === true ? "sí" : "no"}</output>
+      </label>
+    );
+  }
+
+  if (field.type === "boolean") {
+    return (
+      <label className="doc-meta-field doc-meta-field--check">
+        <input
+          type="checkbox"
+          checked={value === true}
+          onChange={(e) => onChange(e.target.checked)}
+        />
+        <span>{field.label}</span>
+      </label>
+    );
+  }
+
+  const commit = () => {
+    const next = fromText(field, text);
+    if (!sameValue(next, value)) onChange(next);
+  };
+
+  return (
+    <label className="doc-meta-field">
+      <span>{field.label}</span>
+      {field.type === "textarea" ? (
+        <textarea
+          value={text}
+          rows={2}
+          placeholder={field.placeholder}
+          onChange={(e) => setText(e.target.value)}
+          onBlur={commit}
+        />
+      ) : (
+        <input
+          type={field.type === "date" ? "date" : "text"}
+          value={text}
+          placeholder={field.placeholder ?? (field.type === "list" ? "una, dos, tres" : undefined)}
+          onChange={(e) => setText(e.target.value)}
+          onBlur={commit}
+          onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
+        />
+      )}
+    </label>
+  );
+}
+
+/** Valor del frontmatter → texto del control. */
+function toText(field: MetaFieldDef, value: unknown): string {
+  if (value === undefined || value === null) return "";
+  if (field.type === "list") {
+    return Array.isArray(value) ? value.map(String).join(", ") : String(value);
+  }
+  // Un `<input type="date">` solo acepta YYYY-MM-DD; el frontmatter guarda ISO
+  // completo (lo que espera el sitio del blog), así que se recorta al mostrar.
+  if (field.type === "date") return String(value).slice(0, 10);
+  return String(value);
+}
+
+/** Texto del control → valor del frontmatter. Vacío borra el campo. */
+function fromText(field: MetaFieldDef, text: string): unknown {
+  const clean = text.trim();
+  if (field.type === "list") {
+    const items = clean
       .split(",")
       .map((t) => t.trim())
       .filter((t) => t !== "");
-    if (tags.join(" ") !== props.tags.join(" ")) props.onChangeTags(tags);
+    return items.length > 0 ? items : undefined;
   }
+  if (clean === "") return undefined;
+  if (field.type === "date") {
+    // Se escribe ISO completo para mantener el formato que el destino espera.
+    const parsed = new Date(`${clean}T00:00:00.000Z`);
+    return Number.isNaN(parsed.getTime()) ? clean : parsed.toISOString();
+  }
+  return clean;
+}
 
-  return (
-    <div className="doc-header">
-      <input
-        className="doc-title"
-        value={title}
-        onChange={(e) => setTitle(e.target.value)}
-        onBlur={commitTitle}
-        onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
-        aria-label="Título del documento"
-      />
-      <span
-        className="state-dot"
-        aria-hidden="true"
-        style={{ backgroundColor: currentState?.color ?? "transparent" }}
-      />
-      <select
-        className="doc-estado"
-        aria-label="Estado del documento"
-        value={props.estado ?? ""}
-        onChange={(e) => props.onChangeEstado(e.target.value)}
-      >
-        {!currentState && <option value="">Sin estado</option>}
-        {props.states.map((s) => (
-          <option key={s.id} value={s.id}>
-            {s.label}
-          </option>
-        ))}
-      </select>
-      <input
-        className="doc-tags"
-        value={tagsText}
-        onChange={(e) => setTagsText(e.target.value)}
-        onBlur={commitTags}
-        onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
-        placeholder="etiquetas, separadas, por, comas"
-        aria-label="Etiquetas"
-      />
-      <button type="button" className="doc-export" onClick={props.onQuality}>
-        Calidad
-      </button>
-      <button type="button" className="doc-export" onClick={props.onHistory}>
-        Historial
-      </button>
-      <button type="button" className="doc-export" onClick={props.onExport}>
-        Exportar
-      </button>
-      <button
-        type="button"
-        className="doc-trash"
-        title="Mover a la papelera"
-        aria-label="Mover a la papelera"
-        onClick={props.onTrash}
-      >
-        🗑
-      </button>
-    </div>
-  );
+function sameValue(a: unknown, b: unknown): boolean {
+  if (Array.isArray(a) && Array.isArray(b)) return a.join(" ") === b.join(" ");
+  if (a === undefined && (b === undefined || b === null || b === "")) return true;
+  return a === b;
 }

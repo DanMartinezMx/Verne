@@ -16,6 +16,52 @@ export const podcastBlueprint: BlueprintDef = {
     { id: "publicado", label: "Publicado", color: "#10b981" },
   ],
   initialState: "idea",
+  theme: { accent: "#db2777", accentDark: "#f472b6", editorFont: "sans" },
+  exportProfiles: ["cms"],
+  collections: [],
+  metaFields: [
+    { key: "invitado", label: "Invitado", type: "text" },
+    { key: "duracion", label: "Duración", type: "text", placeholder: "38:12" },
+    { key: "publicado", label: "Publicado", type: "date" },
+  ],
+  templates: [
+    {
+      id: "episodio",
+      label: "Guion de episodio",
+      contents: `---
+title: {{title}}
+estado: idea
+---
+
+## Apertura
+
+Gancho de 30 segundos.
+
+## Bloque 1
+
+## Cierre
+
+Resumen, llamada a la acción, despedida.
+`,
+    },
+    {
+      id: "notas-del-programa",
+      label: "Notas del programa",
+      contents: `---
+title: {{title}}
+estado: idea
+---
+
+## Resumen
+
+## Enlaces mencionados
+
+-
+
+## Créditos
+`,
+    },
+  ],
   starterDocument: {
     fileName: "episodio-001.md",
     contents: `---

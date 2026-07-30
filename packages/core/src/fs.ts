@@ -33,3 +33,25 @@ export function joinPath(...parts: string[]): string {
     .map((p, i) => (i === 0 ? p.replace(/[/\\]+$/, "") : p.replace(/^[/\\]+|[/\\]+$/g, "")))
     .join("/");
 }
+
+/** Separadores y caracteres reservados de Windows: fuera del nombre. */
+const RESERVED_CHARS = /[\\/:*?"<>|]/g;
+/** Controles ASCII (rango 0x00–0x1F): fuera del nombre. */
+const CONTROL_CHARS = /[\x00-\x1f]/g;
+
+/**
+ * Limpia un nombre para el disco conservando espacios, guiones y acentos
+ * (VPF: los archivos los lee un humano en su explorador). Quitar los puntos de
+ * los extremos es lo que impide que un nombre se convierta en `..`.
+ *
+ * Vive aquí, y no en organize.ts, porque project.ts también lo necesita para el
+ * andamio y al revés habría dependencia circular.
+ */
+export function sanitizeName(raw: string): string {
+  return raw
+    .replace(RESERVED_CHARS, "")
+    .replace(CONTROL_CHARS, "")
+    .replace(/\s+/g, " ")
+    .replace(/^\.+|\.+$/g, "")
+    .trim();
+}

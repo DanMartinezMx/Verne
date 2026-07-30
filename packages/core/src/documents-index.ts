@@ -21,6 +21,7 @@ export async function readDocumentMeta(
   fs: VerneFs,
   path: string,
   name: string,
+  tagsField?: string,
 ): Promise<DocumentMeta> {
   const parts = await readDocument(fs, path);
   const fields = getFrontmatterFields(parts);
@@ -32,7 +33,7 @@ export async function readDocumentMeta(
     name,
     title,
     estado: typeof fields["estado"] === "string" ? fields["estado"] : null,
-    tags: readTags(fields),
+    tags: readTags(fields, tagsField),
     words: countWords(parts.body),
   };
 }
@@ -40,13 +41,14 @@ export async function readDocumentMeta(
 export async function readProjectDocuments(
   fs: VerneFs,
   project: Project,
+  tagsField?: string,
 ): Promise<DocumentMeta[]> {
   const tree = await readProjectTree(fs, project);
   const docs: TreeNode[] = [];
   collectDocuments(tree, docs);
   const metas: DocumentMeta[] = [];
   for (const node of docs) {
-    metas.push(await readDocumentMeta(fs, node.path, node.name));
+    metas.push(await readDocumentMeta(fs, node.path, node.name, tagsField));
   }
   return metas;
 }

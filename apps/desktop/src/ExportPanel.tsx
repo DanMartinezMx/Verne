@@ -1,4 +1,5 @@
 import type { BlueprintDef } from "@verne/blueprints";
+import { joinDocument } from "@verne/core";
 import { toCleanMarkdown, toHtmlDocument, toHtmlFragment, toManuscriptDocx } from "@verne/export";
 import { useState } from "react";
 
@@ -6,6 +7,8 @@ interface ExportPanelProps {
   blueprint: BlueprintDef;
   title: string;
   body: string;
+  /** Frontmatter del documento, para el `.md` que se copia al sitio. */
+  frontmatterRaw: string | null;
   author: string;
   language: string;
   onSaveAuthor: (author: string) => void;
@@ -14,7 +17,11 @@ interface ExportPanelProps {
   onClose: () => void;
 }
 
-/** Exportación del documento abierto, con opciones según el Blueprint (P6). */
+/**
+ * Exportación del documento abierto. Lo que se ofrece sale de
+ * `blueprint.exportProfiles` (RFC-0003 §2): antes lo decidía un
+ * `if (blueprint.id === "blog")` aquí dentro.
+ */
 export function ExportPanel(props: ExportPanelProps) {
   const [author, setAuthor] = useState(props.author);
   const [contact, setContact] = useState("");
@@ -43,13 +50,14 @@ export function ExportPanel(props: ExportPanelProps) {
     if (clean !== props.author) props.onSaveAuthor(clean);
   }
 
-  const slug = props.title
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 60);
+  const slug =
+    props.title
+      .normalize("NFD")
+      .replace(/[̀-ͯ]/g, "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 60) || props.blueprint.vocabulary.documentSingular;
 
   return (
     <section className="export">
@@ -59,15 +67,50 @@ export function ExportPanel(props: ExportPanelProps) {
           ← Volver al documento
         </button>
       </header>
-      {feedback && <p className="export-feedback" aria-live="polite">{feedback}</p>}
+      {feedback && (
+        <p className="export-feedback" aria-live="polite">
+          {feedback}
+        </p>
+      )}
 
-      {props.blueprint.id === "blog" ? (
+      {props.blueprint.exportProfiles.includes("cms") && (
         <>
           <div className="export-card">
-            <h3>Para tu CMS</h3>
+            <h3>Para tu sitio</h3>
             <p className="export-note">
-              HTML limpio del cuerpo, sin clases ni estilos: pégalo en WordPress, Ghost,
-              o donde publiques.
+              El archivo Markdown con su frontmatter tal cual: cópialo al repositorio de tu
+              sitio y compila sin retocar nada.
+            </p>
+            <div className="export-actions">
+              <button
+                type="button"
+                onClick={() =>
+                  void saveFile(
+                    `${slug}.md`,
+                    joinDocument({ frontmatterRaw: props.frontmatterRaw, body: props.body }),
+                  )
+                }
+              >
+                Guardar .md con frontmatter…
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  void copyText(
+                    "Markdown",
+                    joinDocument({ frontmatterRaw: props.frontmatterRaw, body: props.body }),
+                  )
+                }
+              >
+                Copiar .md con frontmatter
+              </button>
+            </div>
+          </div>
+          <div className="export-card">
+            <h3>Para pegar en un CMS</h3>
+            <p className="export-note">
+              HTML o Markdown limpios del cuerpo, sin frontmatter ni clases: para WordPress,
+              Ghost, o donde publiques pegando.
             </p>
             <div className="export-actions">
               <button
@@ -84,16 +127,11 @@ export function ExportPanel(props: ExportPanelProps) {
               >
                 Copiar Markdown
               </button>
-            </div>
-          </div>
-          <div className="export-card">
-            <h3>Como archivo</h3>
-            <div className="export-actions">
               <button
                 type="button"
                 onClick={() =>
                   void saveFile(
-                    `${slug || "entrada"}.html`,
+                    `${slug}.html`,
                     toHtmlDocument({
                       title: props.title,
                       body: props.body,
@@ -104,23 +142,17 @@ export function ExportPanel(props: ExportPanelProps) {
               >
                 Guardar HTML…
               </button>
-              <button
-                type="button"
-                onClick={() =>
-                  void saveFile(`${slug || "entrada"}.md`, toCleanMarkdown(props.body))
-                }
-              >
-                Guardar Markdown…
-              </button>
             </div>
           </div>
         </>
-      ) : (
+      )}
+
+      {props.blueprint.exportProfiles.includes("manuscrito-docx") && (
         <div className="export-card">
           <h3>Manuscrito estándar (DOCX)</h3>
           <p className="export-note">
-            El formato que esperan revistas y concursos: Times 12, doble espacio,
-            encabezado con apellido y página, separadores “#” y “Fin” al cierre.
+            El formato que esperan revistas y concursos: Times 12, doble espacio, encabezado
+            con apellido y página, separadores “#” y “Fin” al cierre.
           </p>
           <label className="export-field">
             Autor
@@ -151,7 +183,7 @@ export function ExportPanel(props: ExportPanelProps) {
                     ...(author.trim() !== "" ? { author: author.trim() } : {}),
                     contact: contact.split("\n"),
                   });
-                  await saveFile(`${slug || "cuento"}.docx`, bytes);
+                  await saveFile(`${slug}.docx`, bytes);
                 })()
               }
             >

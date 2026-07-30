@@ -1,6 +1,6 @@
 import { parseDocument } from "yaml";
 import { VerneError } from "./errors.js";
-import { joinPath, type VerneFs } from "./fs.js";
+import { joinPath, sanitizeName, type VerneFs } from "./fs.js";
 import {
   parseManifest,
   serializeManifest,
@@ -36,6 +36,8 @@ export interface CreateProjectOptions {
   language?: string;
   /** Documento inicial (lo aporta el Blueprint; core no conoce plantillas). */
   starterDocument?: { fileName: string; contents: string };
+  /** Carpetas que se crean bajo `contenido/` (andamio del espacio). */
+  scaffold?: string[];
 }
 
 export async function createProject(
@@ -55,6 +57,9 @@ export async function createProject(
   };
   for (const sub of [CONTENT_DIR, RESOURCES_DIR, EXPORT_DIR, INTERNAL_DIR]) {
     await fs.mkdir(joinPath(dir, sub));
+  }
+  for (const folder of options.scaffold ?? []) {
+    await fs.mkdir(joinPath(dir, CONTENT_DIR, sanitizeName(folder)));
   }
   if (options.starterDocument) {
     await fs.writeTextFile(

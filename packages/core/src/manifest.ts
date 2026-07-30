@@ -7,11 +7,22 @@ export const VPF_VERSION = "0.1";
 export const BLUEPRINT_IDS = ["blog", "cuento", "guion", "podcast", "diario"] as const;
 export type BlueprintId = (typeof BLUEPRINT_IDS)[number];
 
+/** ¿Es un tipo de espacio que esta versión conoce? */
+export function isKnownBlueprint(id: string): id is BlueprintId {
+  return (BLUEPRINT_IDS as readonly string[]).includes(id);
+}
+
 export interface ProjectManifest {
   /** Versión de la especificación VPF (docs/spec/vpf). */
   vpf: string;
   name: string;
-  blueprint: BlueprintId;
+  /**
+   * Tipo de espacio. Es `string` y no la unión cerrada a propósito: un valor
+   * desconocido se preserva y la app cae a un espacio genérico, para que un
+   * proyecto creado por una versión futura se pueda abrir y leer
+   * (RFC-0003 §7.1). Usa `isKnownBlueprint` para distinguirlos.
+   */
+  blueprint: string;
   /** Código BCP 47, p. ej. "es" o "es-MX". */
   language: string;
   /** Fecha de creación en ISO 8601. */
@@ -44,17 +55,16 @@ export function parseManifest(text: string): ProjectManifest {
   if (typeof m["name"] !== "string" || m["name"].trim() === "") {
     throw new VerneError("INVALID_MANIFEST", "verne.yaml no declara un 'name' válido");
   }
+  // Un tipo desconocido NO es un error: se preserva y la app usa el espacio de
+  // reserva (RFC-0003 §7.1). Lo que sigue siendo error es que falte o esté vacío.
   const blueprint = m["blueprint"];
-  if (typeof blueprint !== "string" || !(BLUEPRINT_IDS as readonly string[]).includes(blueprint)) {
-    throw new VerneError(
-      "INVALID_MANIFEST",
-      `Blueprint desconocido: ${String(blueprint)} (soportados: ${BLUEPRINT_IDS.join(", ")})`,
-    );
+  if (typeof blueprint !== "string" || blueprint.trim() === "") {
+    throw new VerneError("INVALID_MANIFEST", "verne.yaml no declara un 'blueprint' válido");
   }
   const manifest: ProjectManifest = {
     vpf,
     name: m["name"],
-    blueprint: blueprint as BlueprintId,
+    blueprint,
     language: typeof m["language"] === "string" ? m["language"] : "es",
     createdAt: typeof m["createdAt"] === "string" ? m["createdAt"] : "",
   };
