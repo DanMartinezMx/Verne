@@ -51,6 +51,36 @@ export function withFrontmatterFields(
   return { frontmatterRaw: `---\n${yamlText}---\n`, body: parts.body };
 }
 
+/**
+ * Cada cuánto se refresca como mínimo una fecha de modificación. Guardar es
+ * automático (cada pocos segundos mientras escribes), y sellar el instante en
+ * cada guardado dejaría un `updatedAt` distinto por pulsación: ruido en el
+ * historial de git y ninguna información nueva.
+ */
+export const STAMP_INTERVAL_MS = 60_000;
+
+/**
+ * Sella la fecha actual en los campos indicados, si hace falta. Devuelve las
+ * mismas partes sin tocar cuando ninguna fecha ha caducado, para que el
+ * frontmatter se preserve byte a byte en el caso normal (regla VPF).
+ */
+export function stampSaveDates(
+  parts: DocumentParts,
+  keys: readonly string[],
+  now: Date = new Date(),
+  intervalMs: number = STAMP_INTERVAL_MS,
+): DocumentParts {
+  if (keys.length === 0) return parts;
+  const fields = getFrontmatterFields(parts);
+  const changes: Record<string, unknown> = {};
+  for (const key of keys) {
+    const previous = Date.parse(String(fields[key] ?? ""));
+    const stale = Number.isNaN(previous) || now.getTime() - previous >= intervalMs;
+    if (stale) changes[key] = now.toISOString();
+  }
+  return Object.keys(changes).length === 0 ? parts : withFrontmatterFields(parts, changes);
+}
+
 /** Nombre del campo de etiquetas cuando el espacio no dice otro. */
 export const DEFAULT_TAGS_FIELD = "tags";
 

@@ -10,6 +10,7 @@ import {
   splitFrontmatter,
   listTemplates,
   seedTemplates,
+  stampSaveDates,
   TEMPLATES_DIR,
   type Project,
 } from "../src/index.js";
@@ -109,5 +110,55 @@ describe("plantillas (RFC-0003 §4)", () => {
 
   it("sin carpeta de plantillas, no falla: devuelve lista vacía", async () => {
     expect(await listTemplates(nodeFs, project)).toEqual([]);
+  });
+});
+
+/**
+ * La fecha de modificación que espera un generador de sitios. Guardar es
+ * automático y cada pocos segundos, así que sellar el instante en cada guardado
+ * dejaría un `updatedAt` distinto por pulsación.
+ */
+describe("fechas de modificación al guardar", () => {
+  const parts = (updatedAt?: string) => ({
+    frontmatterRaw: `---\ntitle: Entrada\n${updatedAt ? `updatedAt: "${updatedAt}"\n` : ""}---\n`,
+    body: "Cuerpo.\n",
+  });
+
+  it("sella la fecha cuando el campo no existe", () => {
+    const now = new Date("2026-08-01T10:00:00.000Z");
+    const result = stampSaveDates(parts(), ["updatedAt"], now);
+    expect(getFrontmatterFields(result)["updatedAt"]).toBe("2026-08-01T10:00:00.000Z");
+  });
+
+  it("la refresca si ya pasó el intervalo", () => {
+    const now = new Date("2026-08-01T10:05:00.000Z");
+    const result = stampSaveDates(parts("2026-08-01T10:00:00.000Z"), ["updatedAt"], now);
+    expect(getFrontmatterFields(result)["updatedAt"]).toBe("2026-08-01T10:05:00.000Z");
+  });
+
+  /** Lo que evita el ruido: dentro del intervalo, el archivo no se toca. */
+  it("no toca nada dentro del intervalo, y preserva el frontmatter byte a byte", () => {
+    const original = parts("2026-08-01T10:00:00.000Z");
+    const now = new Date("2026-08-01T10:00:30.000Z");
+    const result = stampSaveDates(original, ["updatedAt"], now);
+    expect(result).toBe(original);
+    expect(result.frontmatterRaw).toBe(original.frontmatterRaw);
+  });
+
+  it("sin campos que sellar, devuelve las partes tal cual", () => {
+    const original = parts("2026-08-01T10:00:00.000Z");
+    expect(stampSaveDates(original, [], new Date("2027-01-01T00:00:00.000Z"))).toBe(original);
+  });
+
+  it("una fecha ilegible se considera caducada y se corrige", () => {
+    const now = new Date("2026-08-01T10:00:00.000Z");
+    const result = stampSaveDates(parts("ayer por la tarde"), ["updatedAt"], now);
+    expect(getFrontmatterFields(result)["updatedAt"]).toBe("2026-08-01T10:00:00.000Z");
+  });
+
+  it("no toca los demás campos del frontmatter", () => {
+    const result = stampSaveDates(parts(), ["updatedAt"], new Date("2026-08-01T10:00:00.000Z"));
+    expect(getFrontmatterFields(result)["title"]).toBe("Entrada");
+    expect(result.body).toBe("Cuerpo.\n");
   });
 });

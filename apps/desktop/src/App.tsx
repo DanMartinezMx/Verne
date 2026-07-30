@@ -37,6 +37,7 @@ import {
   seedTemplates,
   listTemplates,
   splitFrontmatter,
+  stampSaveDates,
   snapshotDocument,
   trashDocument,
   updateCollectionEntry,
@@ -59,6 +60,7 @@ import {
   type UpdateInfo,
 } from "@verne/core";
 import type { FormatState, ProseEditorHandle } from "@verne/editor";
+import { toManuscriptDocx } from "@verne/export";
 import { ProjectTree, type FolderOption, type TreeDecoration } from "@verne/ui";
 import {
   Fragment,
@@ -234,13 +236,23 @@ export function App() {
         await snapshotDocument(hostFs, currentProject, current.node.path);
         snapshottedRef.current.add(current.node.path);
       }
-      await writeDocument(hostFs, current.node.path, {
-        frontmatterRaw: current.frontmatterRaw,
-        body,
-      });
+      // Fechas de modificación que el espacio pida sellar (el `updatedAt` del
+      // blog). Devuelve las partes intactas si ninguna ha caducado, así que en
+      // el caso normal el frontmatter se preserva byte a byte.
+      const parts = stampSaveDates(
+        { frontmatterRaw: current.frontmatterRaw, body },
+        getBlueprint(currentProject.manifest.blueprint)
+          .metaFields.filter((f) => f.autoOnSave && f.type === "date")
+          .map((f) => f.key),
+      );
+      await writeDocument(hostFs, current.node.path, parts);
       dirtyRef.current = false;
       setSaveState("saved");
       setWords(countWords(body));
+      // Si se selló una fecha, la cabecera debe reflejarlo sin recargar.
+      if (parts.frontmatterRaw !== current.frontmatterRaw) {
+        setDoc((prev) => (prev ? { ...prev, frontmatterRaw: parts.frontmatterRaw } : prev));
+      }
       await refreshDocMeta(current.node.path, current.node.name);
     } catch (e) {
       setSaveState("dirty");
@@ -829,14 +841,28 @@ export function App() {
     }
   }
 
-  /** Exporta la obra entera como un solo Markdown. */
-  async function handleCompile() {
+  /**
+   * Exporta la obra entera: Markdown, o DOCX en formato de manuscrito estándar
+   * —el que piden agencias y concursos— con toda la novela dentro, no solo el
+   * capítulo abierto.
+   */
+  async function handleCompile(format: "md" | "docx") {
     const p = projectRef.current;
     if (!p) return;
     try {
       const manuscript = await compileManuscript(hostFs, p);
       setCompiled(manuscript);
-      await handleSaveExportFile(`${slugify(p.manifest.name) || "manuscrito"}.md`, manuscript.markdown);
+      const slug = slugify(p.manifest.name) || "manuscrito";
+      if (format === "md") {
+        await handleSaveExportFile(`${slug}.md`, manuscript.markdown);
+        return;
+      }
+      const bytes = await toManuscriptDocx({
+        title: p.manifest.name,
+        body: manuscript.markdown,
+        ...(p.manifest.author ? { author: p.manifest.author } : {}),
+      });
+      await handleSaveExportFile(`${slug}.docx`, bytes);
     } catch (e) {
       reportError(e);
     }
@@ -1166,7 +1192,7 @@ export function App() {
             target={target}
             onChangeTarget={(next) => void handleChangeTarget(next)}
             onSelect={(node) => void handleSelect(node)}
-            onCompile={() => void handleCompile()}
+            onCompile={(format) => void handleCompile(format)}
           />
         ) : view === "colecciones" && hasCollections ? (
           <CollectionPanel

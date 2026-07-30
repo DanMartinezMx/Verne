@@ -83,6 +83,12 @@ export interface MetaFieldDef {
   /** Se rellena al crear el documento (`date` → ahora en ISO). */
   autoOnCreate?: boolean;
   /**
+   * Se refresca al guardar (solo `date`): la fecha de modificación que espera un
+   * generador de sitios. No en cada guardado —son automáticos y cada pocos
+   * segundos—, sino como mucho una vez por minuto.
+   */
+  autoOnSave?: boolean;
+  /**
    * Se recalcula desde `estado` en el mismo guardado que el estado. Es la razón
    * de que los espacios sean TypeScript y no YAML: una derivación es código.
    */

@@ -1,7 +1,7 @@
 # Verne
 
-**Escribe blogs y cuentos en una app que respeta tus archivos.** Libre, open source
-y local-first, para Windows.
+**Escribe blogs, cuentos y novelas en una app que respeta tus archivos.** Libre, open
+source y local-first, para Windows, macOS y Linux.
 
 Verne es una aplicación de escritura donde cada proyecto adapta la experiencia a lo
 que escribes: un proyecto de **blog** tiene estados editoriales y exportación limpia
@@ -59,6 +59,10 @@ legibles con cualquier editor.
 
 ### Novedades
 
+- **v0.3.1** — **macOS y Linux**: Verne se instala en las tres plataformas, y CI
+  construye los tres paquetes en cada cambio. Compilar una novela ahora da también
+  **DOCX en formato de manuscrito estándar** con la obra completa, no solo el capítulo
+  abierto. El `updatedAt` del blog se sella al guardar.
 - **v0.3.0** — **espacios**: una carpeta de escritura con proyectos dentro y un
   conmutador para saltar entre ellos; cada espacio decide sus plantillas, fichas,
   campos, estilo y exportadores como **datos** y no como código de la interfaz
@@ -79,7 +83,7 @@ Notas completas de cada versión en [Releases](../../releases).
 
 - **Sincronización propia**: usa [Syncthing o git sobre tus carpetas](docs/guia-multidispositivo.md) —
   funciona hoy y sin depender de nadie.
-- **Plugins, IA, exportación EPUB/PDF, móvil, macOS/Linux**: diseñados en los RFCs,
+- **Plugins, IA, exportación EPUB/PDF, móvil**: diseñados en los RFCs,
   construidos solo cuando su necesidad sea real. Verne funciona completo sin
   Internet y sin ninguna IA, siempre. Lo que se sabe hoy sobre llevarlo a iOS —y por
   qué un PWA no serviría— está en [RFC-0003 §8](rfcs/0003-espacios.md), para no
@@ -89,20 +93,38 @@ Notas completas de cada versión en [Releases](../../releases).
 
 ## Instalar
 
-Descarga el instalador de Windows desde
-[Releases](../../releases). El binario no está firmado todavía: Windows SmartScreen
-puede pedirte confirmación ("Más información" → "Ejecutar de todas formas").
+Descarga el paquete de tu sistema desde [Releases](../../releases).
+
+| Sistema | Archivo | Nota |
+|---|---|---|
+| **Windows** | `.exe` (instalador NSIS) | SmartScreen puede pedir confirmación: «Más información» → «Ejecutar de todas formas» |
+| **macOS** | `.dmg` (universal: Apple Silicon e Intel) | Gatekeeper lo bloquea al abrirlo: clic derecho → «Abrir», y confirmar una vez |
+| **Linux** | `.AppImage` o `.deb` | El AppImage se ejecuta sin instalar (`chmod +x`). Necesita WebKitGTK 4.1 |
+
+**Ningún binario está firmado todavía**, en ninguna de las tres plataformas: firmar
+cuesta dinero (99 USD/año en Apple, un certificado EV en Windows) y no lo justifica
+todavía un proyecto de un solo maintainer. El código está aquí y las builds salen de
+[CI público](../../actions), así que puedes comprobar de dónde viene el archivo o
+compilarlo tú.
 
 ## Desarrollo
 
 Requisitos: Node ≥ 22, [pnpm](https://pnpm.io) 10, y [Rust](https://rustup.rs) +
 los [prerequisitos de Tauri](https://tauri.app/start/prerequisites/).
 
+En Linux hacen falta además los paquetes de WebKitGTK; la lista exacta que usa CI está
+en [`.github/workflows/ci.yml`](.github/workflows/ci.yml).
+
 ```sh
 pnpm install
 pnpm check                          # typecheck + tests + lint de fronteras
 pnpm --filter @verne/desktop tauri dev    # app de escritorio en desarrollo
 ```
+
+CI construye los paquetes de las tres plataformas en cada PR, así que un cambio que
+rompa una de ellas se ve antes de mergear. Los `.deb` y `.AppImage` se compilan en
+Ubuntu 22.04 a propósito: quedan atados a la glibc de la máquina que los construye, y
+hacerlo en la más nueva los dejaría sin funcionar en distribuciones aún soportadas.
 
 Estructura: `packages/core` (lógica y formato VPF, sin UI), `packages/editor`
 (ProseMirror encapsulado), `packages/blueprints` (tipos de espacio),
