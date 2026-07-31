@@ -75,7 +75,23 @@ export {
   trashDocument,
   type TrashEntry,
 } from "./trash.js";
+export {
+  addCustomWords,
+  DICTIONARY_FILE,
+  parseCustomWords,
+  readCustomWords,
+} from "./dictionary.js";
 export { joinPath, sanitizeName, type FsEntry, type VerneFs } from "./fs.js";
+export {
+  analyzeSpelling,
+  createSpeller,
+  findMisspellings,
+  listUnknownWords,
+  type Dictionary,
+  type Misspelling,
+  type Speller,
+  type UnknownWord,
+} from "./spelling.js";
 export { listSpaces, type SpaceSummary } from "./library.js";
 export {
   BLUEPRINT_IDS,

@@ -10,7 +10,7 @@ exportación en formato de manuscrito estándar. Y tu obra son siempre **archivo
 Markdown en una carpeta normal**: si Verne desaparece mañana, tus textos siguen ahí,
 legibles con cualquier editor.
 
-## Qué hace hoy (v0.3)
+## Qué hace hoy (v0.4)
 
 - **Editor de texto rico** que guarda Markdown: barra de formato, atajos, modo
   enfoque, autosave y snapshots de seguridad locales.
@@ -38,10 +38,16 @@ legibles con cualquier editor.
 - **Plantillas que son tuyas**: cada espacio siembra las suyas en `plantillas/` como
   Markdown normal. Edítalas con el Bloc de notas y el cambio aparece en el selector;
   añade las que quieras. Verne nunca sobrescribe una plantilla que tocaste.
+- **Ortografía propia**, offline y la misma en las tres plataformas: subraya lo que no
+  está en el diccionario con la sugerencia al pasar el cursor, y **aprende los nombres
+  de tus personajes** — el panel "Ortografía" lista las palabras desconocidas con su
+  recuento y las añades de una vez a `diccionario.txt`, un archivo de texto que viaja
+  con tu carpeta. Sabe que en español el diálogo lleva raya, así que no subraya cada
+  línea de diálogo.
 - **Calidad sin IA**, local e instantánea, que además de señalar explica: legibilidad
   (Fernández-Huerta), repeticiones cercanas, frases largas, adverbios en -mente y
   muletillas. En el panel "Calidad" o **subrayado en vivo mientras escribes**, con la
-  explicación al pasar el cursor.
+  explicación al pasar el cursor. La ortografía y el estilo se encienden por separado.
 - **Historial visible**: cada documento guarda versiones; ábrelas, míralas y
   **restaura** una desde el botón "Historial" (restaurar respalda antes lo actual —
   nunca pierdes nada).
@@ -59,6 +65,11 @@ legibles con cualquier editor.
 
 ### Novedades
 
+- **v0.4.0** — **corrector ortográfico propio** ([RFC-0004](rfcs/0004-ortografia.md)):
+  offline, igual en Windows, macOS y Linux, con diccionario de español y un diccionario
+  por proyecto para los nombres de tus personajes. Es la capa 1 del pipeline de análisis
+  de RFC-0001 §11, que hasta ahora no existía: la ortografía era la que trajera el
+  WebView de cada sistema, y en Linux podía no haber ninguna.
 - **v0.3.1** — **macOS y Linux**: Verne se instala en las tres plataformas, y CI
   construye los tres paquetes en cada cambio. Compilar una novela ahora da también
   **DOCX en formato de manuscrito estándar** con la obra completa, no solo el capítulo
@@ -159,7 +170,12 @@ con su razonamiento en [`rfcs/`](rfcs/):
 
 ## Licencia
 
-[AGPL-3.0](LICENSE) para todo el repositorio en v0.x. Cuando existan el SDK de
+[AGPL-3.0](LICENSE) para todo el repositorio en v0.x.
+
+El **diccionario de español** que usa el corrector ortográfico es obra de Santiago
+Bosio (el de LibreOffice y Apache OpenOffice), con triple licencia GPL-3.0 / LGPL-3.0
+/ MPL-1.1; Verne lo distribuye bajo la opción **LGPL-3.0**, sin modificarlo. El
+detalle y la atribución completa están en [`docs/licencias/`](docs/licencias/). Cuando existan el SDK de
 plugins y las bibliotecas del formato VPF, se publicarán bajo MIT/Apache-2.0 para
 que cualquier herramienta pueda implementar el formato (RFC-0001 §19.5.4,
 RFC-0002 §7.2).

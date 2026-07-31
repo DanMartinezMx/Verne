@@ -1,6 +1,6 @@
 [package]
 name = "verne-desktop"
-version = "0.3.1"
+version = "0.4.0"
 description = "Verne — un sistema operativo para escritores"
 edition = "2021"
 license = "AGPL-3.0-only"

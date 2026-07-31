@@ -76,6 +76,8 @@
   --uc-frase-larga: #1d4ed8;
   --uc-adverbio-mente: #6d28d9;
   --uc-muletilla: #0f766e;
+  /* Capa 1: rojo, la convención universal de falta de ortografía. */
+  --uc-ortografia: #dc2626;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
@@ -83,6 +85,7 @@
     --uc-frase-larga: #93b4fd;
     --uc-adverbio-mente: #c4b5fd;
     --uc-muletilla: #5eead4;
+    --uc-ortografia: #f87171;
   }
 }
 :root[data-theme="dark"] {
@@ -90,6 +93,7 @@
   --uc-frase-larga: #93b4fd;
   --uc-adverbio-mente: #c4b5fd;
   --uc-muletilla: #5eead4;
+  --uc-ortografia: #f87171;
 }
 .ProseMirror .uc {
   text-decoration-line: underline;
@@ -101,6 +105,12 @@
 .ProseMirror .uc--repeticion { text-decoration-color: var(--uc-repeticion); }
 .ProseMirror .uc--adverbio-mente { text-decoration-color: var(--uc-adverbio-mente); }
 .ProseMirror .uc--muletilla { text-decoration-color: var(--uc-muletilla); }
+/* La ortografía se marca más gruesa que el estilo: es un error, no una
+   sugerencia, y debe distinguirse de un vistazo. */
+.ProseMirror .uc--ortografia {
+  text-decoration-color: var(--uc-ortografia);
+  text-decoration-thickness: 2px;
+}
 /* La frase larga es un tramo largo: un tinte suave lee mejor que una onda
    kilométrica, y deja ver los subrayados de palabra que caen dentro. */
 .ProseMirror .uc--frase-larga {

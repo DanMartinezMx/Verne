@@ -6,14 +6,20 @@ interface QualityPanelProps {
   onClose: () => void;
 }
 
-const CATEGORY_LABELS: Record<FindingCategory, string> = {
+/**
+ * Este panel es de estilo (capa 2). La ortografía es capa 1 y tiene su propio
+ * panel: una falta no se explica, se corrige.
+ */
+type StyleCategory = Exclude<FindingCategory, "ortografia">;
+
+const CATEGORY_LABELS: Record<StyleCategory, string> = {
   "frase-larga": "Frases largas",
   repeticion: "Repeticiones cercanas",
   "adverbio-mente": "Adverbios en -mente",
   muletilla: "Muletillas",
 };
 
-const CATEGORY_ORDER: FindingCategory[] = [
+const CATEGORY_ORDER: StyleCategory[] = [
   "repeticion",
   "frase-larga",
   "adverbio-mente",
