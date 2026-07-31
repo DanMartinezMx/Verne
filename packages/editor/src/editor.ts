@@ -76,6 +76,13 @@ export function createProseEditor(options: ProseEditorOptions): ProseEditorHandl
 
   const view = new EditorView(options.parent, {
     state,
+    /**
+     * El corrector del WebView queda apagado: Verne trae el suyo (RFC-0004), y
+     * dos subrayados sobre la misma palabra que no coinciden son peores que uno.
+     * Además el del sistema no es el mismo en Windows, macOS y Linux —en Linux
+     * puede no existir—, y el propio sí.
+     */
+    attributes: { spellcheck: "false" },
     dispatchTransaction(tr) {
       view.updateState(view.state.apply(tr));
       if (tr.docChanged) options.onDocChanged?.();

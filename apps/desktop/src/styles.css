@@ -1059,6 +1059,30 @@ button[type="submit"]:hover:not(:disabled), .update-download:hover {
   margin-bottom: var(--s3);
 }
 
+/* ═══ Panel de ortografía ══════════════════════════════════════════════════ */
+.spelling { max-width: 48rem; }
+.spelling-list { list-style: none; margin: 0 0 var(--s4); padding: 0; display: grid; gap: 2px; }
+.spelling-word {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s2);
+  padding: 0.35rem var(--s2);
+  border-radius: var(--r-sm);
+  cursor: pointer;
+}
+.spelling-word:hover { background: color-mix(in srgb, var(--accent) 7%, transparent); }
+.spelling-word input { margin: 0; }
+.spelling-term { font-weight: 600; }
+.spelling-count { font-size: var(--t-xs); color: var(--faint); font-variant-numeric: tabular-nums; }
+.spelling-suggestions { font-size: var(--t-sm); color: var(--muted); }
+.spelling-custom {
+  margin: 0;
+  font-size: var(--t-sm);
+  color: var(--muted);
+  line-height: 1.7;
+  word-break: break-word;
+}
+
 /* ═══ Panel de calidad ═════════════════════════════════════════════════════ */
 .quality { max-width: 48rem; }
 .quality-stats {

@@ -17,6 +17,7 @@ interface DocHeaderProps {
   /** Cambia la lista de valores admitidos de un campo, en el proyecto. */
   onChangeOptions: (key: string, options: string[]) => void;
   onExport: () => void;
+  onSpelling: () => void;
   onQuality: () => void;
   onHistory: () => void;
   onTrash: () => void;
@@ -71,6 +72,9 @@ export function DocHeader(props: DocHeaderProps) {
             </option>
           ))}
         </select>
+        <button type="button" className="doc-export" onClick={props.onSpelling}>
+          Ortografía
+        </button>
         <button type="button" className="doc-export" onClick={props.onQuality}>
           Calidad
         </button>

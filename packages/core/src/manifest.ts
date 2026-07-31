@@ -6,7 +6,7 @@ import { VerneError } from "./errors.js";
  * La compatibilidad es por versión mayor, así que un proyecto 0.1 se abre sin
  * migración: lo que 0.2 añade es opcional (docs/spec/vpf).
  */
-export const VPF_VERSION = "0.2";
+export const VPF_VERSION = "0.3";
 
 export const BLUEPRINT_IDS = [
   "blog",

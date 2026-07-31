@@ -6,7 +6,9 @@ import {
 } from "@verne/blueprints";
 import {
   addCollectionEntry,
+  addCustomWords,
   analyzeInline,
+  analyzeSpelling,
   analyzeText,
   applyTemplate,
   compileManuscript,
@@ -24,9 +26,11 @@ import {
   listSnapshots,
   listSpaces,
   listTrash,
+  listUnknownWords,
   moveEntry,
   openProject,
   readDocument,
+  readCustomWords,
   readDocumentMeta,
   readProjectDocuments,
   readProjectTree,
@@ -54,8 +58,10 @@ import {
   type SearchResult,
   type Snapshot,
   type SpaceSummary,
+  type Speller,
   type Template,
   type TrashEntry,
+  type UnknownWord,
   type TreeNode,
   type UpdateInfo,
 } from "@verne/core";
@@ -74,6 +80,8 @@ import {
 import { CollectionPanel } from "./CollectionPanel.js";
 import { DocHeader } from "./DocHeader.js";
 import { ManuscriptPanel } from "./ManuscriptPanel.js";
+import { SpellingPanel } from "./SpellingPanel.js";
+import { loadSpeller } from "./spelling-host.js";
 import { ExportPanel } from "./ExportPanel.js";
 import { HistoryPanel } from "./HistoryPanel.js";
 import { MarkdownEditor } from "./MarkdownEditor.js";
@@ -89,6 +97,8 @@ const AUTOSAVE_DELAY_MS = 800;
 /** Espera tras dejar de teclear antes de recalcular los subrayados de calidad. */
 const INLINE_HINT_DELAY_MS = 600;
 const HINTS_KEY = "verne.inline-hints";
+/** La ortografía se recuerda encendida o apagada, como los subrayados de estilo. */
+const SPELLING_KEY = "verne.spelling";
 const UPDATE_DISMISSED_KEY = "verne.update-dismissed";
 const RECENTS_KEY = "verne.recent-projects";
 const RECENTS_MAX = 8;
@@ -137,6 +147,15 @@ function saveInlineHints(on: boolean): void {
   localStorage.setItem(HINTS_KEY, on ? "on" : "off");
 }
 
+/** La ortografía también viene encendida: es lo que se espera de un editor. */
+function loadSpelling(): boolean {
+  return localStorage.getItem(SPELLING_KEY) !== "off";
+}
+
+function saveSpelling(on: boolean): void {
+  localStorage.setItem(SPELLING_KEY, on ? "on" : "off");
+}
+
 /** Última versión que el usuario decidió posponer, para no repetir el aviso. */
 function loadDismissedUpdate(): string {
   return localStorage.getItem(UPDATE_DISMISSED_KEY) ?? "";
@@ -153,7 +172,15 @@ interface OpenDoc {
 }
 
 type SaveState = "saved" | "dirty" | "saving";
-type View = "doc" | "colecciones" | "manuscrito" | "papelera" | "exportar" | "calidad" | "historial";
+type View =
+  | "doc"
+  | "colecciones"
+  | "manuscrito"
+  | "papelera"
+  | "exportar"
+  | "calidad"
+  | "ortografia"
+  | "historial";
 
 export function App() {
   const [project, setProject] = useState<Project | null>(null);
@@ -187,6 +214,10 @@ export function App() {
   const [focusMode, setFocusMode] = useState(false);
   const [formatState, setFormatState] = useState<FormatState | null>(null);
   const [inlineHints, setInlineHints] = useState<boolean>(loadInlineHints);
+  const [spelling, setSpelling] = useState<boolean>(loadSpelling);
+  /** Palabras propias del proyecto (`diccionario.txt`). */
+  const [customWords, setCustomWords] = useState<string[]>([]);
+  const [unknownWords, setUnknownWords] = useState<UnknownWord[]>([]);
   const [recents, setRecents] = useState<RecentProject[]>(loadRecents);
   const [library, setLibrary] = useState<string>(loadLibrary);
   /** Espacios de la biblioteca, para el conmutador de la barra lateral. */
@@ -203,12 +234,19 @@ export function App() {
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hintTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const inlineHintsRef = useRef(inlineHints);
+  const spellingRef = useRef(spelling);
+  /**
+   * El corrector, ya con las palabras del proyecto. En un ref y no en estado
+   * porque lo consume `runInlineHints`, que corre fuera del ciclo de React.
+   */
+  const spellerRef = useRef<Speller | null>(null);
   /** Rutas ya respaldadas en esta sesión: un snapshot por doc y sesión. */
   const snapshottedRef = useRef(new Set<string>());
 
   docRef.current = doc;
   projectRef.current = project;
   inlineHintsRef.current = inlineHints;
+  spellingRef.current = spelling;
 
   const blueprint: BlueprintDef | null = project ? getBlueprint(project.manifest.blueprint) : null;
 
@@ -260,17 +298,23 @@ export function App() {
     }
   }, [refreshDocMeta]);
 
-  // ── Subrayados de calidad en vivo (P16) ───────────────────────────────
+  // ── Subrayados en vivo: ortografía (capa 1) y estilo (capa 2) ─────────
 
-  /** Recalcula y aplica los subrayados sobre el documento del editor. */
+  /**
+   * Recalcula y aplica los subrayados. Las dos capas comparten el mismo canal de
+   * decoraciones, y cada una se puede apagar por separado: la ortografía es un
+   * error y el estilo una sugerencia, y no todo el mundo quiere las dos.
+   */
   const runInlineHints = useCallback(() => {
     const editor = editorRef.current;
     if (!editor) return;
-    if (!inlineHintsRef.current) {
-      editor.setInlineDecorations([]);
-      return;
-    }
-    const findings = analyzeInline(editor.getPlainText());
+    const text = editor.getPlainText();
+    const findings = [
+      ...(spellingRef.current && spellerRef.current
+        ? analyzeSpelling(text, spellerRef.current)
+        : []),
+      ...(inlineHintsRef.current ? analyzeInline(text) : []),
+    ];
     editor.setInlineDecorations(
       findings.map((f) => ({
         from: f.from,
@@ -291,6 +335,36 @@ export function App() {
     saveInlineHints(inlineHints);
     runInlineHints();
   }, [inlineHints, runInlineHints]);
+
+  /**
+   * Prepara el corrector con las palabras del proyecto. El diccionario del
+   * español se descarga una vez por sesión y solo si la ortografía está
+   * encendida; encenderla es lo que dispara la descarga.
+   */
+  const prepareSpeller = useCallback(
+    async (words: readonly string[]) => {
+      if (!spellingRef.current) {
+        spellerRef.current = null;
+        runInlineHints();
+        return;
+      }
+      try {
+        spellerRef.current = await loadSpeller(words);
+        runInlineHints();
+      } catch (e) {
+        // Sin diccionario no hay ortografía, pero escribir sigue funcionando.
+        spellerRef.current = null;
+        setError(`No se pudo cargar el diccionario: ${String(e)}`);
+      }
+    },
+    [runInlineHints],
+  );
+
+  useEffect(() => {
+    saveSpelling(spelling);
+    void prepareSpeller(customWords);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [spelling, customWords]);
 
   // ── Aviso de nueva versión (P2: avisar, nunca descargar ni bloquear) ───
 
@@ -369,6 +443,9 @@ export function App() {
     // (son del usuario a partir de ese momento).
     await seedTemplates(hostFs, p, bp.templates);
     setTemplates(await listTemplates(hostFs, p));
+    // Las palabras propias son del proyecto: cambiar de espacio cambia el
+    // corrector (los personajes de una novela no son los de otra).
+    setCustomWords(await readCustomWords(hostFs, p));
   }
 
   async function loadProject(p: Project) {
@@ -883,6 +960,46 @@ export function App() {
     }
   }
 
+  /** Abre el panel de ortografía con las desconocidas del documento abierto. */
+  async function handleOpenSpelling() {
+    const current = docRef.current;
+    if (!current) return;
+    try {
+      await saveNow();
+      // Si la ortografía estaba apagada, abrir el panel la necesita: se carga el
+      // diccionario a demanda sin encender los subrayados.
+      let speller = spellerRef.current;
+      if (!speller) {
+        speller = await loadSpeller(customWords);
+        spellerRef.current = speller;
+      }
+      const parts = await readDocument(hostFs, current.node.path);
+      setUnknownWords(listUnknownWords(parts.body, speller));
+      setView("ortografia");
+    } catch (e) {
+      reportError(e);
+    }
+  }
+
+  /** Añade palabras al diccionario del proyecto y rehace el corrector. */
+  async function handleAddWords(words: string[]) {
+    const p = projectRef.current;
+    if (!p) return;
+    try {
+      const all = await addCustomWords(hostFs, p, words);
+      setCustomWords(all);
+      const speller = await loadSpeller(all);
+      spellerRef.current = speller;
+      runInlineHints();
+      const current = docRef.current;
+      if (current) {
+        setUnknownWords(listUnknownWords((await readDocument(hostFs, current.node.path)).body, speller));
+      }
+    } catch (e) {
+      reportError(e);
+    }
+  }
+
   async function handleOpenQuality() {
     const current = docRef.current;
     if (!current) return;
@@ -1212,6 +1329,14 @@ export function App() {
             report={qualityReport}
             onClose={() => setView("doc")}
           />
+        ) : view === "ortografia" && doc ? (
+          <SpellingPanel
+            title={currentMeta?.title ?? doc.node.name}
+            unknown={unknownWords}
+            customWords={customWords}
+            onAdd={(words) => void handleAddWords(words)}
+            onClose={() => setView("doc")}
+          />
         ) : view === "historial" && doc ? (
           <HistoryPanel
             title={currentMeta?.title ?? doc.node.name}
@@ -1255,6 +1380,7 @@ export function App() {
               onChangeField={(key, value) => void updateDocMetadata({ [key]: value })}
               onChangeOptions={(key, values) => void handleChangeOptions(key, values)}
               onExport={() => void handleOpenExport()}
+              onSpelling={() => void handleOpenSpelling()}
               onQuality={() => void handleOpenQuality()}
               onHistory={() => void handleOpenHistory()}
               onTrash={() => void handleTrash()}
@@ -1286,15 +1412,26 @@ export function App() {
             {saveState === "saved" ? "Guardado" : saveState === "saving" ? "Guardando…" : "Sin guardar"}
           </span>
           {doc && view === "doc" && (
-            <button
-              type="button"
-              className="linklike"
-              aria-pressed={inlineHints}
-              onClick={() => setInlineHints((v) => !v)}
-              title="Subraya repeticiones, frases largas y muletillas mientras escribes"
-            >
-              {inlineHints ? "Marcas: sí" : "Marcas: no"}
-            </button>
+            <>
+              <button
+                type="button"
+                className="linklike"
+                aria-pressed={spelling}
+                onClick={() => setSpelling((v) => !v)}
+                title="Subraya las palabras que no están en el diccionario, con la sugerencia al pasar el cursor"
+              >
+                {spelling ? "Ortografía: sí" : "Ortografía: no"}
+              </button>
+              <button
+                type="button"
+                className="linklike"
+                aria-pressed={inlineHints}
+                onClick={() => setInlineHints((v) => !v)}
+                title="Subraya repeticiones, frases largas y muletillas mientras escribes"
+              >
+                {inlineHints ? "Estilo: sí" : "Estilo: no"}
+              </button>
+            </>
           )}
           <ThemeToggle />
           <button

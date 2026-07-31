@@ -8,7 +8,13 @@ export type FindingCategory =
   | "frase-larga"
   | "repeticion"
   | "adverbio-mente"
-  | "muletilla";
+  | "muletilla"
+  /**
+   * Capa 1 (RFC-0004). Solo aparece en los subrayados en vivo, no en el informe
+   * de calidad: una falta de ortografía no es un problema de estilo que haya que
+   * explicar, es una palabra que corregir.
+   */
+  | "ortografia";
 
 export interface Finding {
   category: FindingCategory;
@@ -47,7 +53,12 @@ export interface InlineFinding {
   why: string;
 }
 
-const WHY: Record<FindingCategory, string> = {
+/**
+ * La explicación educativa de cada hallazgo de estilo (P16). La ortografía queda
+ * fuera a propósito: su explicación no es un texto fijo sobre por qué algo
+ * debilita la prosa, es la sugerencia concreta para esa palabra.
+ */
+const WHY: Record<Exclude<FindingCategory, "ortografia">, string> = {
   "frase-larga":
     "Las frases muy largas obligan al lector a retener demasiado antes de llegar al verbo o a la idea. No están prohibidas — pero cada una debería ser una decisión, no un accidente. Prueba a leerla en voz alta: donde te falte el aire, suele faltar un punto.",
   repeticion:

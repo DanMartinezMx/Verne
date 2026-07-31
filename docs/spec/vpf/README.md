@@ -1,12 +1,12 @@
-# Verne Project Format (VPF) — versión 0.2
+# Verne Project Format (VPF) — versión 0.3
 
 > Estado: borrador vivo; evoluciona junto al código en v0.x. Cambios incompatibles
 > exigen subir la versión mayor y quedar registrados aquí. Contexto de diseño:
-> RFC-0001 §6, RFC-0002 §5 y RFC-0003.
+> RFC-0001 §6, RFC-0002 §5, RFC-0003 y RFC-0004.
 >
-> **0.2 es compatible hacia atrás:** un proyecto 0.1 se abre sin migración. Lo
-> nuevo (`plantillas/`, `options`, `target`, el espacio `novela`) es opcional, y un
-> `blueprint` desconocido dejó de ser un error.
+> **Compatible hacia atrás:** un proyecto 0.1 o 0.2 se abre sin migración. Todo lo que
+> añaden 0.2 (`plantillas/`, `options`, `target`, el espacio `novela`) y 0.3
+> (`diccionario.txt`) es opcional, y un `blueprint` desconocido dejó de ser un error.
 
 ## Principios
 
@@ -25,6 +25,7 @@ mi-proyecto/
 ├── verne.yaml          # Manifiesto (obligatorio; define "esto es un proyecto Verne")
 ├── contenido/          # La obra: .md y subcarpetas, estructura libre del usuario
 ├── plantillas/         # Plantillas de documento: .md normales, editables (0.2)
+├── diccionario.txt     # Palabras correctas en este proyecto (0.3)
 ├── colecciones/        # Fichas con esquema: colecciones/<nombre>/*.md + _schema.yaml
 ├── recursos/           # Binarios (imágenes, adjuntos)
 ├── export/             # Perfiles de exportación (a partir del hito M3)
@@ -33,7 +34,7 @@ mi-proyecto/
 ```
 
 Los nombres de carpeta (`contenido`, `plantillas`, `colecciones`, `recursos`, `export`,
-`papelera`, `.verne`) son parte de la especificación.
+`papelera`, `.verne`) y el de `diccionario.txt` son parte de la especificación.
 
 ### La biblioteca no es parte del formato
 
@@ -47,7 +48,7 @@ herramienta puede hacer lo mismo con un `ls`.
 
 | Campo | Tipo | Obligatorio | Descripción |
 |---|---|---|---|
-| `vpf` | string | sí | Versión de la spec (`"0.1"` o `"0.2"`). Compatibilidad por versión mayor |
+| `vpf` | string | sí | Versión de la spec (`"0.1"`, `"0.2"` o `"0.3"`). Compatibilidad por versión mayor |
 | `name` | string | sí | Nombre del proyecto (para humanos) |
 | `blueprint` | string | sí | Tipo de espacio. Conocidos en 0.2: `blog` \| `cuento` \| `novela` \| `guion` \| `podcast` \| `diario` |
 | `language` | string | no (def. `es`) | Código BCP 47 del idioma principal |
@@ -133,6 +134,18 @@ puntos o comillas rompa el frontmatter del documento nuevo.
 Las plantillas de un espacio se escriben al crear el proyecto y **nunca se sobrescriben**:
 a partir de ese momento son del usuario.
 
+## `diccionario.txt` — 0.3
+
+Palabras que son correctas en este proyecto aunque no estén en ningún diccionario del
+idioma: nombres de personajes, lugares inventados, términos propios. Texto plano, **una
+palabra por línea**, UTF-8. Las líneas vacías y las que empiezan por `#` se ignoran, para
+que quien lo edite a mano pueda agrupar con encabezados.
+
+Vive en la **raíz** del proyecto y no en `.verne/` por una razón de contrato: esa carpeta es
+prescindible —borrarla nunca debe perder nada— y estas palabras son trabajo del escritor, no
+estado derivado. En la raíz además viaja al copiar la carpeta, se versiona y se sincroniza
+como cualquier otro archivo del proyecto (RFC-0004 §5).
+
 ## Estados por espacio (campo `estado`)
 
 | Espacio | Estados |
@@ -182,6 +195,9 @@ y `.verne/sync.yaml` (colaboración, si su disparador llega — RFC-0002 §8),
 `.verne/index.db` (índice) y `.verne/history/` (snapshots, ya en uso).
 
 ## Historial de versiones
+
+- **0.3** — `diccionario.txt`: las palabras propias del proyecto, y la posibilidad de que
+  un espacio declare una fecha de modificación que la app sella al guardar (RFC-0004).
 
 - **0.2** — `plantillas/`, `options`, `target`, el espacio `novela`, colecciones de
   personajes/localizaciones/tramas, y un `blueprint` desconocido deja de ser error.
