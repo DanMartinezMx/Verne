@@ -63,7 +63,7 @@ export const blogBlueprint: BlueprintDef = {
     },
     { key: "categories", label: "Categorías", type: "list", options: BLOG_CATEGORIES },
     { key: "createdAt", label: "Creada", type: "date", autoOnCreate: true },
-    { key: "updatedAt", label: "Actualizada", type: "date" },
+    { key: "updatedAt", label: "Actualizada", type: "date", autoOnSave: true },
     { key: "image", label: "Portada", type: "text", placeholder: "/uploads/foto.jpg" },
     {
       key: "slug",

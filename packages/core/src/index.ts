@@ -44,6 +44,8 @@ export {
   DEFAULT_TAGS_FIELD,
   getFrontmatterFields,
   readTags,
+  STAMP_INTERVAL_MS,
+  stampSaveDates,
   withFrontmatterFields,
 } from "./frontmatter.js";
 export { searchProject, type SearchResult } from "./search.js";

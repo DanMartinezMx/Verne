@@ -8,7 +8,7 @@ interface ManuscriptPanelProps {
   onChangeTarget: (target: number) => void;
   onSelect: (node: TreeNode) => void;
   /** Exporta la obra completa como un solo documento. */
-  onCompile: () => void;
+  onCompile: (format: "md" | "docx") => void;
 }
 
 /**
@@ -28,9 +28,18 @@ export function ManuscriptPanel(props: ManuscriptPanelProps) {
     <section className="manuscript">
       <header className="manuscript-header">
         <h2>Manuscrito</h2>
-        <button type="button" onClick={props.onCompile}>
-          Compilar en un documento…
-        </button>
+        <div className="manuscript-actions">
+          <button
+            type="button"
+            onClick={() => props.onCompile("docx")}
+            title="Toda la obra en formato de manuscrito estándar: Times 12, doble espacio, encabezado con apellido y página"
+          >
+            Compilar en DOCX…
+          </button>
+          <button type="button" onClick={() => props.onCompile("md")}>
+            Compilar en Markdown…
+          </button>
+        </div>
       </header>
 
       <div className="manuscript-progress">

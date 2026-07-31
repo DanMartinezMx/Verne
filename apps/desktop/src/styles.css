@@ -924,6 +924,7 @@ button[type="submit"]:hover:not(:disabled), .update-download:hover {
 /* Ocupa el ancho disponible, con un tope generoso: la lista de capítulos se lee
    mejor ancha, pero una barra de 2000px de largo no dice más que una de 900. */
 .manuscript { max-width: 76rem; }
+.manuscript-actions { display: flex; gap: var(--s2); flex-wrap: wrap; }
 .manuscript-progress {
   margin-bottom: var(--s5);
   padding: var(--s4);

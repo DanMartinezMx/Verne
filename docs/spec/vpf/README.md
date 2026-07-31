@@ -98,6 +98,10 @@ sea una lista de textos se ignora sin impedir abrir el proyecto.
   comentarios YAML se preservan al editar metadatos desde la app.
 - Cuando Verne no edita metadatos, el frontmatter se preserva **byte a byte**; al
   editarlos, solo cambian los campos tocados.
+- Un espacio puede declarar una **fecha de modificación** que la aplicación refresca al
+  guardar (el `updatedAt` que espera un generador de sitios). Guardar es automático, así
+  que no se refresca en cada guardado sino como mucho una vez por minuto: dentro de ese
+  intervalo el archivo no se toca y la preservación byte a byte se mantiene.
 - Archivos y carpetas cuyo nombre empieza por `.` no forman parte del contenido.
 
 ### El orden es el de los archivos
